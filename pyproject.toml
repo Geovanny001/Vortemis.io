@@ -1,7 +1,7 @@
 [project]
 name = "vortemis"
 version = "0.1.0"
-description = "Sistema de analisis probabilistico de trafico de red con enfoque SOC Pasivo"
+description = "Probabilistic passive SOC network telemetry analysis system"
 requires-python = ">=3.14"
 dependencies = [
     "pandas>=2.2",
