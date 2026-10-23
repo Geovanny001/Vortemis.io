@@ -1,48 +1,25 @@
-# Vortemis.io
+# Vortemis SOC
 
-Motor de análisis probabilístico de tráfico de red con enfoque SOC pasivo.
+Probabilistic passive SOC network telemetry analysis system.
 
-## Qué busca el proyecto
+## Description
 
-Procesar telemetría de red masiva (Big Data) mediante **redes bayesianas e inferencia matemática** para detectar probabilísticamente anomalías de ciberseguridad y exfiltración de datos, superando las reglas de seguridad estáticas.
+Vortemis SOC is a probabilistic network telemetry analysis system with a
+passive SOC approach. It ingests massive network telemetry (Big Data) and
+uses Bayesian networks and mathematical inference to probabilistically detect
+cybersecurity anomalies and data exfiltration, going beyond static security
+rules.
 
-## Alcance actual (Sprint 1)
+## Architecture & Tech Stack
 
-1. Ingesta asíncrona de logs Zeek.
-2. Normalización vectorial con Pandas/NumPy.
-3. Persistencia en esquema en estrella en PostgreSQL 16.
+- **Architecture:** Strict hexagonal architecture
+  (`domain` -> `application` -> `infrastructure` -> `entrypoints`).
+- **Python:** 3.14+
+- **Telemetry:** Zeek
+- **Data processing:** Pandas, NumPy
+- **Storage:** PostgreSQL 16 with SQLAlchemy 2.x (async)
 
-## Arquitectura
+## License & Copyright
 
-Arquitectura hexagonal estricta. El flujo de dependencias es:
-
-```
-domain -> application -> infrastructure -> entrypoints
-```
-
-- `domain`: conceptos puros de telemetría de red (sin dependencias externas).
-- `application`: casos de uso y puertos (driving/driven).
-- `infrastructure`: adaptadores (Zeek, PostgreSQL, etc.).
-- `entrypoints`: puntos de entrada (CLI, API, etc.).
-
-## Stack
-
-- Python 3.14+
-- SQLAlchemy 2.x (asíncrono) + asyncpg
-- Pandas, NumPy, Pydantic
-- Ruff (lint) y Pytest (tests)
-
-## Estructura de ramas (Git Flow)
-
-- `main`: producción estable.
-- `develop`: integración (rama por defecto).
-- `feature/<nombre>`: una rama por fase/feature, se mergea de vuelta a `develop`.
-
-## Estado de fases
-
-- [x] Fase 0 — Setup (pyproject, ruff, pytest)
-- [x] Fase 1 — Dominio puro (value objects, NetworkFlow, errores)
-- [x] Fase 2 — Puertos e interfaces de aplicación
-- [ ] Fase 3 — Adaptador Zeek (ingesta asíncrona)
-- [ ] Fase 4 — Normalización vectorial (Pandas/NumPy)
-- [ ] Fase 5 — Persistencia PostgreSQL (esquema en estrella)
+Proprietary software developed by Carles Rivera and Contributors. See the
+[LICENSE](LICENSE) file for details.
