@@ -28,7 +28,7 @@ Alcance inicial (Sprint 1): Ingesta asíncrona de logs de Zeek -> Normalización
 - [x] Fase 1: Dominio puro (Value Objects, NetworkFlow, DomainValidationError) con 23 tests en verde.
 - [x] Fase 2: Capa de Aplicación - Puertos e Interfaces (Driving y Driven).
 - [x] Fase 3: Infraestructura - Adaptador Zeek (Streaming asíncrono y Parsers TSV/JSON).
-- [ ] Fase 4: Caso de Uso - Normalizador Vectorial (Pandas/NumPy, IAT y doble salida).
+- [x] Fase 4: Caso de Uso - Normalizador Vectorial (Pandas/NumPy, IAT y doble salida).
 - [ ] Fase 5: Infraestructura - Persistencia PostgreSQL (Esquema en Estrella y SQLAlchemy asíncrono).
 - [ ] Fase 6: CLI y Entrypoints End-to-End.
 
