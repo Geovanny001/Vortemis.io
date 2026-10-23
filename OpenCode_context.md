@@ -1,9 +1,3 @@
-# Contexto Maestro del Proyecto: Vortemis
-
-## Rol y Objetivo
-Vortemis es un sistema de analisis probabilistico de trafico de red con enfoque SOC Pasivo.
-Alcance actual: Sprint 1 (Ingesta asincrona de logs Zeek -> Normalizacion vectorial con Pandas/NumPy -> Persistencia en Esquema en Estrella en PostgreSQL 16).
-
 # Contexto Maestro: Vortemis
 
 ## Objetivo del Sistema
