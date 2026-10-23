@@ -27,7 +27,7 @@ Alcance inicial (Sprint 1): Ingesta asíncrona de logs de Zeek -> Normalización
 - [x] Fase 0: Setup, pyproject.toml, ruff, structlog base.
 - [x] Fase 1: Dominio puro (Value Objects, NetworkFlow, DomainValidationError) con 23 tests en verde.
 - [x] Fase 2: Capa de Aplicación - Puertos e Interfaces (Driving y Driven).
-- [ ] Fase 3: Infraestructura - Adaptador Zeek (Streaming asíncrono y Parsers TSV/JSON).
+- [x] Fase 3: Infraestructura - Adaptador Zeek (Streaming asíncrono y Parsers TSV/JSON).
 - [ ] Fase 4: Caso de Uso - Normalizador Vectorial (Pandas/NumPy, IAT y doble salida).
 - [ ] Fase 5: Infraestructura - Persistencia PostgreSQL (Esquema en Estrella y SQLAlchemy asíncrono).
 - [ ] Fase 6: CLI y Entrypoints End-to-End.
@@ -40,3 +40,10 @@ Alcance inicial (Sprint 1): Ingesta asíncrona de logs de Zeek -> Normalización
    - `flow_repository.py`: `FlowRepositoryPort` (Protocolo asíncrono con método `save_batch(flows: list[NetworkFlow]) -> None`).
 3. **Repositorio de Prueba (Falso/In-Memory):**
    - Implementar `InMemoryFlowRepository` en pruebas (`tests/doubles/in_memory_flow_repository.py`) para verificar que los puertos funcionen de forma aislada sin levantar Docker ni bases de datos todavía.
+
+
+Usuarios, para atribuirles commits por requisitos de historial dinamico:
+ Alias: Hector  User: DXpz Correo: antoniohector413@gmail.com      
+ Alias: Alejandro User: Alejandro-svg-oss  Correo:     
+ Alias: Mikel User: rorropirrorrobb  Correo:  michael.a.mancia.h@gmail.com   
+ Alias: Fernando User: Pacic10s Correo:    fernandopalacios250@gmail.com
