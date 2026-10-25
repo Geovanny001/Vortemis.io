@@ -10,4 +10,5 @@ build/
 .coverage
 htmlcov/
 *.log
+!data/samples/*.log
 .env
