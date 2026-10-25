@@ -1,0 +1,30 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vortemis
+      POSTGRES_PASSWORD: vortemis
+      POSTGRES_DB: vortemis
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vortemis -d vortemis"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://vortemis:vortemis@db:5432/vortemis
+      LOG_FILE: /app/data/samples/conn.log
+    volumes:
+      - ./data/samples:/app/data/samples:ro
+
+volumes:
+  postgres_data:
