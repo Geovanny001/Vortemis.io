@@ -26,5 +26,16 @@ services:
     volumes:
       - ./data/samples:/app/data/samples:ro
 
+  dashboard:
+    build: .
+    command: streamlit run src/vortemis/entrypoints/dashboard.py --server.port 8501
+    ports:
+      - "8501:8501"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://vortemis:vortemis@db:5432/vortemis
+
 volumes:
   postgres_data:
