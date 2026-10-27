@@ -1,0 +1,128 @@
+{
+  "info": {
+    "name": "Vortemis SOC API",
+    "description": "REST and WebSocket API for the Vortemis SOC probabilistic threat intelligence system.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000" },
+    { "key": "token", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{token}}", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "POST Auth Login (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"admin_carles\", \"password\": \"VortemisAdmin2026!\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "System",
+      "item": [
+        {
+          "name": "GET System Health",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "health"]
+            }
+          }
+        },
+        {
+          "name": "GET Metrics Summary",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/metrics/summary",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "metrics", "summary"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Flows",
+      "item": [
+        {
+          "name": "GET Filtered Network Flows (Anomalies Only)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/flows?only_anomalies=true&limit=100",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "flows"],
+              "query": [
+                { "key": "only_anomalies", "value": "true" },
+                { "key": "limit", "value": "100" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Ingestion",
+      "item": [
+        {
+          "name": "POST Trigger Zeek Batch Ingestion",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ingest/trigger",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "ingest", "trigger"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Configuration",
+      "item": [
+        {
+          "name": "PATCH Update Probabilistic Threshold",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"epsilon_threshold\": 0.75}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/config/threshold",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "config", "threshold"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

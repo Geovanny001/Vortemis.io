@@ -15,27 +15,48 @@ services:
       timeout: 5s
       retries: 10
 
-  app:
+  seed_and_ingest:
     build: .
+    command: sh -c "python scripts/seed_and_generate.py && python -m vortemis.entrypoints.cli"
     depends_on:
       db:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql+asyncpg://vortemis:vortemis@db:5432/vortemis
-      LOG_FILE: /app/data/samples/conn.log
+      LOG_FILE: /app/data/samples/conn_massive.log
+    volumes:
+      - ./data/samples:/app/data/samples
+
+  api:
+    build: .
+    command: uvicorn vortemis.entrypoints.api:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://vortemis:vortemis@db:5432/vortemis
+      JWT_SECRET: vortemis-dev-secret-change-me
+      LOG_FILE: /app/data/samples/conn_massive.log
     volumes:
       - ./data/samples:/app/data/samples:ro
 
   dashboard:
     build: .
-    command: streamlit run src/vortemis/entrypoints/dashboard.py --server.port 8501
+    command: streamlit run src/vortemis/entrypoints/dashboard.py --server.port 8501 --server.address 0.0.0.0
     ports:
       - "8501:8501"
     depends_on:
       db:
         condition: service_healthy
+      api:
+        condition: service_started
     environment:
       DATABASE_URL: postgresql+asyncpg://vortemis:vortemis@db:5432/vortemis
+      LOG_FILE: /app/data/samples/conn_massive.log
+    volumes:
+      - ./data/samples:/app/data/samples:ro
 
 volumes:
   postgres_data:

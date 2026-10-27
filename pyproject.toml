@@ -12,6 +12,9 @@ dependencies = [
     "aiofiles>=24.1",
     "streamlit>=1.40",
     "plotly>=5.24",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "PyJWT>=2.9",
 ]
 
 [dependency-groups]

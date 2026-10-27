@@ -13,6 +13,7 @@ from vortemis.domain.value_objects.timestamp import Timestamp
 from vortemis.infrastructure.persistence.models import (
     Base,
     DimConnState,
+    DimMitreTactic,
     DimProtocol,
     FactNetworkFlow,
 )
@@ -33,7 +34,14 @@ async def session_factory() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
     await engine.dispose()
 
 
-def _flow(src: str, dst: str, proto: str, conn_state: str | None) -> NetworkFlow:
+def _flow(
+    src: str,
+    dst: str,
+    proto: str,
+    conn_state: str | None,
+    orig_bytes: int = 100,
+    iat_ms: float | None = 10.0,
+) -> NetworkFlow:
     return NetworkFlow(
         src_ip=IPAddress(src),
         dst_ip=IPAddress(dst),
@@ -41,10 +49,10 @@ def _flow(src: str, dst: str, proto: str, conn_state: str | None) -> NetworkFlow
         dst_port=Port(443),
         proto=Protocol.from_raw(proto),
         ts=Timestamp.from_epoch(1_700_000_000.0),
-        orig_bytes=100,
+        orig_bytes=orig_bytes,
         resp_bytes=200,
         duration=1.5,
-        iat_ms=10.0,
+        iat_ms=iat_ms,
         conn_state=conn_state,
     )
 
@@ -99,3 +107,51 @@ async def test_save_batch_reuses_existing_dimension_rows(
     assert fact_count == 2
     assert protocol_count == 1
     assert conn_state_count == 1
+
+
+async def test_save_batch_marks_anomalies_and_assigns_tactic(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    repository = PostgresFlowRepository(session_factory)
+
+    await repository.save_batch(
+        [_flow("10.0.0.1", "10.0.0.2", "tcp", "SF", orig_bytes=9000)]
+    )
+
+    async with session_factory() as session:
+        row = await session.scalar(select(FactNetworkFlow))
+        tactic = await session.scalar(
+            select(DimMitreTactic).where(
+                DimMitreTactic.tactic_id == row.tactic_id
+            )
+        )
+
+    assert row is not None
+    assert row.is_anomaly is True
+    assert row.anomaly_score >= 0.75
+    assert row.tactic_id is not None
+    assert tactic is not None
+    assert tactic.mitre_id == "TA0010"
+
+
+async def test_save_batch_assigns_c2_tactic_for_rapid_burst(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    repository = PostgresFlowRepository(session_factory)
+
+    await repository.save_batch(
+        [_flow("10.0.0.1", "10.0.0.2", "tcp", "SF", iat_ms=1.0)]
+    )
+
+    async with session_factory() as session:
+        row = await session.scalar(select(FactNetworkFlow))
+        tactic = await session.scalar(
+            select(DimMitreTactic).where(
+                DimMitreTactic.tactic_id == row.tactic_id
+            )
+        )
+
+    assert row is not None
+    assert row.is_anomaly is True
+    assert tactic is not None
+    assert tactic.mitre_id == "TA0011"
