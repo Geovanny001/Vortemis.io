@@ -12,10 +12,16 @@ dependencies = [
     "aiofiles>=24.1",
     "streamlit>=1.40",
     "plotly>=5.24",
-    "fastapi>=0.115",
-    "uvicorn[standard]>=0.30",
-    "PyJWT>=2.9",
+    "torch>=2.5",
 ]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [dependency-groups]
 dev = [
@@ -55,6 +61,7 @@ ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["ANN"]
+"scripts/*" = ["E402"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

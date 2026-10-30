@@ -6,8 +6,7 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from vortemis.infrastructure.persistence.models import Base, DimMitreTactic, SocUser
-from vortemis.infrastructure.security import hash_password
+from vortemis.infrastructure.persistence.models import Base, DimMitreTactic
 
 DATABASE_URL_ENV = "DATABASE_URL"
 DEFAULT_DATABASE_URL = "postgresql+asyncpg://vortemis:vortemis@localhost:5432/vortemis"
@@ -31,14 +30,10 @@ _UDP_PORTS = [53, 123, 67, 161]
 
 _MITRE_TACTICS = [
     ("TA0010", "Exfiltration"),
+    ("TA0008", "Lateral Movement"),
     ("TA0011", "Command and Control"),
     ("TA0040", "Impact"),
     ("TA0043", "Reconnaissance"),
-]
-
-_USERS = [
-    ("admin_carles", "VortemisAdmin2026!", "admin"),
-    ("soc_analyst", "VortemisAnalyst2026!", "analyst"),
 ]
 
 
@@ -121,7 +116,6 @@ async def seed_database() -> None:
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     async with session_factory() as session:
         await _seed_mitre_tactics(session)
-        await _seed_users(session)
         await session.commit()
     await engine.dispose()
 
@@ -133,22 +127,6 @@ async def _seed_mitre_tactics(session: AsyncSession) -> None:
         DimMitreTactic(mitre_id=mitre_id, tactic_name=tactic_name)
         for mitre_id, tactic_name in _MITRE_TACTICS
         if mitre_id not in existing
-    ]
-    if missing:
-        session.add_all(missing)
-
-
-async def _seed_users(session: AsyncSession) -> None:
-    result = await session.execute(select(SocUser.username))
-    existing = set(result.scalars())
-    missing = [
-        SocUser(
-            username=username,
-            password_hash=hash_password(password),
-            role=role,
-        )
-        for username, password, role in _USERS
-        if username not in existing
     ]
     if missing:
         session.add_all(missing)

@@ -27,21 +27,6 @@ services:
     volumes:
       - ./data/samples:/app/data/samples
 
-  api:
-    build: .
-    command: uvicorn vortemis.entrypoints.api:app --host 0.0.0.0 --port 8000
-    ports:
-      - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgresql+asyncpg://vortemis:vortemis@db:5432/vortemis
-      JWT_SECRET: vortemis-dev-secret-change-me
-      LOG_FILE: /app/data/samples/conn_massive.log
-    volumes:
-      - ./data/samples:/app/data/samples:ro
-
   dashboard:
     build: .
     command: streamlit run src/vortemis/entrypoints/dashboard.py --server.port 8501 --server.address 0.0.0.0
@@ -50,8 +35,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      api:
-        condition: service_started
     environment:
       DATABASE_URL: postgresql+asyncpg://vortemis:vortemis@db:5432/vortemis
       LOG_FILE: /app/data/samples/conn_massive.log
