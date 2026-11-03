@@ -14,12 +14,10 @@ from vortemis.infrastructure.persistence.models import (
     DimMitreTactic,
     DimProtocol,
     FactNetworkFlow,
-    SocUser,
 )
 from vortemis.infrastructure.persistence.postgres_repository import (
     PostgresFlowRepository,
 )
-from vortemis.infrastructure.security import verify_password
 from vortemis.infrastructure.zeek.telemetry_source import ZeekTelemetrySource
 
 DATABASE_URL_ENV = "DATABASE_URL"
@@ -39,7 +37,7 @@ _FLOW_COLUMNS = [
     "iat_ms",
     "orig_bytes",
     "resp_bytes",
-    "anomaly_score",
+    "anomaly_probability",
     "is_anomaly",
     "mitre_tactic",
 ]
@@ -87,7 +85,7 @@ async def load_flows(database_url: str) -> pandas.DataFrame:
                     FactNetworkFlow.iat_ms,
                     FactNetworkFlow.orig_bytes,
                     FactNetworkFlow.resp_bytes,
-                    FactNetworkFlow.anomaly_score,
+                    FactNetworkFlow.anomaly_probability,
                     FactNetworkFlow.is_anomaly,
                     DimMitreTactic.mitre_id,
                 )
@@ -96,7 +94,8 @@ async def load_flows(database_url: str) -> pandas.DataFrame:
                     DimConnState, FactNetworkFlow.conn_state_id == DimConnState.id
                 )
                 .outerjoin(
-                    DimMitreTactic, FactNetworkFlow.tactic_id == DimMitreTactic.tactic_id
+                    DimMitreTactic,
+                    FactNetworkFlow.tactic_id == DimMitreTactic.tactic_id,
                 )
                 .order_by(FactNetworkFlow.ts.desc())
             )
@@ -105,19 +104,6 @@ async def load_flows(database_url: str) -> pandas.DataFrame:
     frame = pandas.DataFrame(rows, columns=_FLOW_COLUMNS)
     frame["ts"] = pandas.to_datetime(frame["ts"])
     return frame
-
-
-async def authenticate(database_url: str, username: str, password: str) -> str | None:
-    engine = create_async_engine(database_url)
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
-    async with session_factory() as session:
-        user = await session.scalar(
-            select(SocUser).where(SocUser.username == username)
-        )
-    await engine.dispose()
-    if user is None or not verify_password(password, user.password_hash):
-        return None
-    return user.role
 
 
 async def run_ingestion(database_url: str, log_file: str) -> int:
@@ -166,8 +152,10 @@ def apply_filters(frame: pandas.DataFrame, filters: dict) -> pandas.DataFrame:
         filtered = filtered[
             filtered["protocol"].str.upper().isin(filters["protocols"])
         ]
+    if filters["mitre_tactics"]:
+        filtered = filtered[filtered["mitre_tactic"].isin(filters["mitre_tactics"])]
     if filters["only_anomalies"]:
-        filtered = filtered[filtered["is_anomaly"]]
+        filtered = filtered[filtered["anomaly_probability"] >= filters["threshold"]]
     if len(filters["date_range"]) == 2:
         start, end = filters["date_range"]
         filtered = filtered[
@@ -176,24 +164,19 @@ def apply_filters(frame: pandas.DataFrame, filters: dict) -> pandas.DataFrame:
     return filtered
 
 
-def render_overview(frame: pandas.DataFrame, threshold: float) -> pandas.DataFrame:
-    anomalies = frame[frame["anomaly_score"] >= threshold]
-    exfiltration = frame[frame["orig_bytes"] > 4000]
-    bursts = frame[frame["iat_ms"].notna() & (frame["iat_ms"] < 5.0)]
+def render_overview(frame: pandas.DataFrame, threshold: float) -> None:
+    anomalies = frame[frame["anomaly_probability"] >= threshold]
+    exfiltration = frame[frame["mitre_tactic"] == "TA0010"]
+    recon_lateral = frame[frame["mitre_tactic"].isin(["TA0043", "TA0008"])]
+    c2_impact = frame[frame["mitre_tactic"].isin(["TA0011", "TA0040"])]
 
     columns = st.columns(5)
     metrics = [
-        ("Overall Anomalies", str(len(anomalies)), "#f85149"),
-        ("Exfiltration Alerts", str(len(exfiltration)), "#d29922"),
-        ("Rapid Burst / C2 Threats", str(len(bursts)), "#58a6ff"),
-        ("Total Analyzed Flows", str(len(frame)), "#3fb950"),
-        (
-            "Total Volume (Bytes)",
-            format_bytes(
-                float(frame["orig_bytes"].sum() + frame["resp_bytes"].sum())
-            ),
-            "#c9d1d9",
-        ),
+        ("Total Flows Analyzed", str(len(frame)), "#c9d1d9"),
+        ("Detected Anomalies", str(len(anomalies)), "#f85149"),
+        ("Data Exfiltration", str(len(exfiltration)), "#d29922"),
+        ("Recon & Lateral", str(len(recon_lateral)), "#58a6ff"),
+        ("C2 & Impact Flood", str(len(c2_impact)), "#bc8cff"),
     ]
     for column, (label, value, color) in zip(columns, metrics, strict=False):
         with column:
@@ -204,22 +187,25 @@ def render_overview(frame: pandas.DataFrame, threshold: float) -> pandas.DataFra
     with left:
         st.subheader("Top Risk Source IPs")
         risk = (
-            frame.groupby("src_ip")["anomaly_score"]
+            frame.groupby("src_ip")["anomaly_probability"]
             .max()
             .sort_values(ascending=False)
             .head(10)
             .reset_index()
-            .rename(columns={"anomaly_score": "max_risk_score"})
+            .rename(columns={"anomaly_probability": "max_risk"})
         )
         st.dataframe(risk, hide_index=True)
 
     with middle:
-        st.subheader("Anomaly Score Distribution")
+        st.subheader("Posterior Probability Distribution")
         histogram = px.histogram(
             frame,
-            x="anomaly_score",
+            x="anomaly_probability",
             nbins=40,
-            title="Anomaly Score Distribution",
+            title="P(Anomaly | Metadata)",
+        )
+        histogram.add_vline(
+            x=threshold, line_dash="dash", line_color="red", annotation_text="epsilon"
         )
         histogram.update_layout(
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)"
@@ -227,29 +213,32 @@ def render_overview(frame: pandas.DataFrame, threshold: float) -> pandas.DataFra
         st.plotly_chart(histogram, use_container_width=True)
 
     with right:
-        st.subheader("Traffic by Protocol & MITRE Tactics")
-        protocol_counts = frame.groupby("protocol").size().reset_index(name="count")
-        bar = px.bar(
-            protocol_counts,
-            x="protocol",
-            y="count",
-            title="Traffic by Protocol",
-        )
-        bar.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)"
-        )
-        st.plotly_chart(bar, use_container_width=True)
+        st.subheader("MITRE Tactic Breakdown")
+        if frame["mitre_tactic"].notna().any():
+            mitre_counts = (
+                frame[frame["mitre_tactic"].notna()]
+                .groupby("mitre_tactic")
+                .size()
+                .reset_index(name="count")
+            )
+            bar = px.bar(mitre_counts, x="mitre_tactic", y="count")
+            bar.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)"
+            )
+            st.plotly_chart(bar, use_container_width=True)
+        else:
+            st.info("No MITRE tactic data yet")
 
-    st.subheader("Anomaly Trends")
+    st.subheader("Anomaly Trend Over Time")
     if not anomalies.empty:
-        anomalies = anomalies.copy()
-        anomalies["minute"] = anomalies["ts"].dt.floor("min")
+        trend_frame = anomalies.copy()
+        trend_frame["minute"] = trend_frame["ts"].dt.floor("min")
         trend = (
-            anomalies.groupby("minute")
+            trend_frame.groupby("minute")
             .size()
             .reset_index(name="anomaly_count")
         )
-        line = px.line(trend, x="minute", y="anomaly_count", title="Anomalies per Minute")
+        line = px.line(trend, x="minute", y="anomaly_count")
         line.update_layout(
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)"
         )
@@ -257,7 +246,7 @@ def render_overview(frame: pandas.DataFrame, threshold: float) -> pandas.DataFra
     else:
         st.info("No anomalies to trend")
 
-    st.subheader("Forensic Flows")
+    st.subheader("Latest Analyzed Network Flows")
     st.dataframe(
         frame[
             [
@@ -270,35 +259,19 @@ def render_overview(frame: pandas.DataFrame, threshold: float) -> pandas.DataFra
                 "conn_state",
                 "iat_ms",
                 "orig_bytes",
-                "anomaly_score",
+                "resp_bytes",
+                "anomaly_probability",
                 "mitre_tactic",
             ]
         ],
         use_container_width=True,
     )
-    return frame
 
 
 def render_mitre_reports(frame: pandas.DataFrame) -> None:
-    st.subheader("MITRE Tactic Breakdown")
-    if frame["mitre_tactic"].notna().any():
-        mitre_counts = (
-            frame[frame["mitre_tactic"].notna()]
-            .groupby("mitre_tactic")
-            .size()
-            .reset_index(name="count")
-        )
-        bar = px.bar(mitre_counts, x="mitre_tactic", y="count", title="Anomalies by MITRE Tactic")
-        bar.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)"
-        )
-        st.plotly_chart(bar, use_container_width=True)
-    else:
-        st.info("No MITRE tactic data yet")
-
     st.subheader("High Risk Anomalies")
-    anomalies = frame[frame["is_anomaly"]].sort_values(
-        "anomaly_score", ascending=False
+    anomalies = frame[frame["mitre_tactic"].notna()].sort_values(
+        "anomaly_probability", ascending=False
     )
     st.dataframe(
         anomalies[
@@ -310,7 +283,8 @@ def render_mitre_reports(frame: pandas.DataFrame) -> None:
                 "dst_port",
                 "protocol",
                 "orig_bytes",
-                "anomaly_score",
+                "resp_bytes",
+                "anomaly_probability",
                 "mitre_tactic",
             ]
         ],
@@ -319,12 +293,12 @@ def render_mitre_reports(frame: pandas.DataFrame) -> None:
 
 
 def render_live_stream(frame: pandas.DataFrame, database_url: str) -> None:
-    st.subheader("API & Database Status")
-    st.write(f"Database endpoint: `{database_url}`")
+    st.subheader("Database Status")
+    st.write(f"Endpoint: `{database_url}`")
     st.success("Database connection active")
 
     st.subheader("Live Alert Stream")
-    alerts = frame[frame["is_anomaly"]].sort_values("ts", ascending=False).head(20)
+    alerts = frame[frame["mitre_tactic"].notna()].sort_values("ts", ascending=False).head(20)
     if alerts.empty:
         st.info("No active alerts")
     else:
@@ -337,7 +311,7 @@ def render_live_stream(frame: pandas.DataFrame, database_url: str) -> None:
                     "src_port",
                     "dst_port",
                     "protocol",
-                    "anomaly_score",
+                    "anomaly_probability",
                     "mitre_tactic",
                 ]
             ],
@@ -345,64 +319,42 @@ def render_live_stream(frame: pandas.DataFrame, database_url: str) -> None:
         )
 
 
-def render_sidebar(database_url: str) -> dict | None:
+def render_sidebar() -> dict:
     with st.sidebar:
-        st.subheader("Authentication")
-        if not st.session_state.get("logged_in", False):
-            username = st.text_input("Username")
-            password = st.text_input("Password", type="password")
-            if st.button("Sign In"):
-                with st.spinner("Authenticating..."):
-                    role = asyncio.run(authenticate(database_url, username, password))
-                if role is None:
-                    st.error("Invalid credentials")
-                else:
-                    st.session_state.logged_in = True
-                    st.session_state.username = username
-                    st.session_state.role = role
-                    st.rerun()
-            return None
-
-        st.write(f"User: **{st.session_state.username}**")
-        st.write(f"Role: **{st.session_state.role}**")
-        if st.button("Sign Out"):
-            st.session_state.logged_in = False
-            st.rerun()
-
-        st.divider()
-        st.subheader("Filters")
+        st.subheader("Controls & Analyst Use Cases")
         date_range = st.date_input("Date Range", value=())
         src_ip = st.text_input("Source IP")
         dst_port = st.number_input(
             "Destination Port", min_value=0, max_value=65535, value=0
         )
         protocols = st.multiselect("Protocol", ["TCP", "UDP", "ICMP"])
-        only_anomalies = st.checkbox("Only Anomalies")
-        threshold = st.slider(
-            "Probabilistic Threshold P(Anomaly)", 0.10, 0.99, 0.50, 0.01
+        mitre_tactics = st.multiselect(
+            "MITRE Tactic", ["TA0010", "TA0008", "TA0040", "TA0043", "TA0011"]
         )
+        threshold = st.slider(
+            "Probabilistic Threshold (epsilon)", 0.10, 0.99, 0.70, 0.01
+        )
+        only_anomalies = st.checkbox("Only Anomalies (P > epsilon)")
 
         st.divider()
-        st.subheader("Actions")
-        apply_clicked = st.button("Apply Filters", use_container_width=True)
-        if apply_clicked:
+        if st.button("Apply Filters", use_container_width=True):
             st.toast("Filters applied")
-        ingest_clicked = st.button(
-            "Ingest New Zeek Batch", use_container_width=True
-        )
-        if ingest_clicked:
+        if st.button("Ingest New Zeek Batch", use_container_width=True):
             log_file = os.getenv(LOG_FILE_ENV, DEFAULT_LOG_FILE)
             with st.spinner("Ingesting new Zeek batch..."):
-                new_flows = asyncio.run(run_ingestion(database_url, log_file))
+                new_flows = asyncio.run(
+                    run_ingestion(os.getenv(DATABASE_URL_ENV, DEFAULT_DATABASE_URL), log_file)
+                )
             st.toast(f"Ingestion complete: {new_flows} new flows processed")
 
         return {
             "src_ip": src_ip,
             "dst_port": dst_port,
             "protocols": protocols,
+            "mitre_tactics": mitre_tactics,
+            "threshold": threshold,
             "only_anomalies": only_anomalies,
             "date_range": date_range,
-            "threshold": threshold,
         }
 
 
@@ -412,10 +364,7 @@ def main() -> None:
     st.title(PAGE_TITLE)
     database_url = os.getenv(DATABASE_URL_ENV, DEFAULT_DATABASE_URL)
 
-    filters = render_sidebar(database_url)
-    if filters is None:
-        st.info("Sign in to access the SOC dashboard")
-        st.stop()
+    filters = render_sidebar()
 
     try:
         frame = asyncio.run(load_flows(database_url))
@@ -429,7 +378,7 @@ def main() -> None:
         [
             "Overview Dashboard",
             "Anomaly & MITRE Reports",
-            "Live Alert Stream & API Status",
+            "Live Alert Stream",
         ]
     )
 
