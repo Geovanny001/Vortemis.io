@@ -4,9 +4,11 @@ from pathlib import Path
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from vortemis.application.use_cases.bayesian_pytorch_engine import BayesianPyTorchEngine
 from vortemis.application.use_cases.flow_normalizer import FlowNormalizerUseCase
 from vortemis.infrastructure.persistence.models import Base
 from vortemis.infrastructure.persistence.postgres_repository import (
+    DEFAULT_EPSILON,
     PostgresFlowRepository,
 )
 from vortemis.infrastructure.zeek.telemetry_source import ZeekTelemetrySource
@@ -25,11 +27,22 @@ DATABASE_URL_ENV = "DATABASE_URL"
 DEFAULT_DATABASE_URL = "postgresql+asyncpg://vortemis:vortemis@localhost:5432/vortemis"
 LOG_FILE_ENV = "LOG_FILE"
 DEFAULT_LOG_FILE = "conn.log"
+MODEL_PATH_ENV = "MODEL_PATH"
+DEFAULT_MODEL_PATH = "models/vortemis_ae.pt"
+EPSILON_ENV = "EPSILON"
 
 
 def print_banner() -> None:
     print(BANNER)
     print(CREDITS)
+
+
+def _load_engine() -> BayesianPyTorchEngine | None:
+    model_path = Path(os.getenv(MODEL_PATH_ENV, DEFAULT_MODEL_PATH))
+    if not model_path.exists():
+        return None
+    epsilon = float(os.getenv(EPSILON_ENV, str(DEFAULT_EPSILON)))
+    return BayesianPyTorchEngine(model_path, epsilon=epsilon)
 
 
 async def main() -> None:
@@ -42,7 +55,12 @@ async def main() -> None:
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     source = ZeekTelemetrySource(log_file)
     repository = PostgresFlowRepository(session_factory)
-    use_case = FlowNormalizerUseCase(source=source, repository=repository)
+    inference_engine = _load_engine()
+    use_case = FlowNormalizerUseCase(
+        source=source,
+        repository=repository,
+        engine=inference_engine,
+    )
     await use_case.execute()
     await engine.dispose()
 

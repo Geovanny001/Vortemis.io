@@ -12,22 +12,23 @@ from vortemis.infrastructure.persistence.models import (
 
 MITRE_TACTICS = {
     "TA0010": "Exfiltration",
+    "TA0008": "Lateral Movement",
     "TA0011": "Command and Control",
     "TA0040": "Impact",
     "TA0043": "Reconnaissance",
 }
 
-ANOMALY_LOW_SCORE = 0.01
-ANOMALY_HIGH_SCORE = 0.75
-EXFILTRATION_BYTES_THRESHOLD = 4000
-BURST_IAT_THRESHOLD_MS = 5.0
-EXFILTRATION_TACTIC = "TA0010"
-C2_TACTIC = "TA0011"
+DEFAULT_EPSILON = 0.70
 
 
 class PostgresFlowRepository(FlowRepositoryPort):
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        epsilon: float = DEFAULT_EPSILON,
+    ) -> None:
         self._session_factory = session_factory
+        self._epsilon = epsilon
 
     async def save_batch(self, flows: list[NetworkFlow]) -> None:
         async with self._session_factory() as session:
@@ -79,9 +80,7 @@ class PostgresFlowRepository(FlowRepositoryPort):
             ids.update({row.name: row.id for row in missing})
         return ids
 
-    async def _ensure_mitre_tactics(
-        self, session: AsyncSession
-    ) -> dict[str, int]:
+    async def _ensure_mitre_tactics(self, session: AsyncSession) -> dict[str, int]:
         result = await session.execute(select(DimMitreTactic))
         ids = {row.mitre_id: row.tactic_id for row in result.scalars()}
         missing = [
@@ -102,15 +101,7 @@ class PostgresFlowRepository(FlowRepositoryPort):
         conn_state_id: int | None,
         tactic_ids: dict[str, int],
     ) -> FactNetworkFlow:
-        is_anomaly = self._is_anomalous(flow)
-        tactic_id = None
-        if is_anomaly:
-            mitre_id = (
-                EXFILTRATION_TACTIC
-                if flow.orig_bytes > EXFILTRATION_BYTES_THRESHOLD
-                else C2_TACTIC
-            )
-            tactic_id = tactic_ids.get(mitre_id)
+        tactic_id = tactic_ids.get(flow.mitre_tactic) if flow.mitre_tactic else None
         return FactNetworkFlow(
             flow_id=str(flow.flow_id),
             src_ip=flow.src_ip.value,
@@ -125,16 +116,6 @@ class PostgresFlowRepository(FlowRepositoryPort):
             resp_bytes=flow.resp_bytes,
             duration=flow.duration,
             iat_ms=flow.iat_ms,
-            anomaly_score=self._anomaly_score(flow, is_anomaly),
-            is_anomaly=is_anomaly,
+            anomaly_probability=flow.anomaly_probability,
+            is_anomaly=flow.anomaly_probability >= self._epsilon,
         )
-
-    def _is_anomalous(self, flow: NetworkFlow) -> bool:
-        if flow.iat_ms is not None and flow.iat_ms < BURST_IAT_THRESHOLD_MS:
-            return True
-        return flow.orig_bytes > EXFILTRATION_BYTES_THRESHOLD
-
-    def _anomaly_score(self, flow: NetworkFlow, is_anomaly: bool) -> float:
-        if is_anomaly:
-            return ANOMALY_HIGH_SCORE + (flow.flow_id.int % 24) / 100.0
-        return ANOMALY_LOW_SCORE + (flow.flow_id.int % 29) / 100.0

@@ -53,5 +53,5 @@ class FactNetworkFlow(Base):
     resp_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
     duration: Mapped[float] = mapped_column(Float, nullable=False)
     iat_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
-    anomaly_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    anomaly_probability: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     is_anomaly: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

@@ -41,6 +41,8 @@ def _flow(
     conn_state: str | None,
     orig_bytes: int = 100,
     iat_ms: float | None = 10.0,
+    anomaly_probability: float = 0.0,
+    mitre_tactic: str | None = None,
 ) -> NetworkFlow:
     return NetworkFlow(
         src_ip=IPAddress(src),
@@ -54,6 +56,8 @@ def _flow(
         duration=1.5,
         iat_ms=iat_ms,
         conn_state=conn_state,
+        anomaly_probability=anomaly_probability,
+        mitre_tactic=mitre_tactic,
     )
 
 
@@ -109,13 +113,22 @@ async def test_save_batch_reuses_existing_dimension_rows(
     assert conn_state_count == 1
 
 
-async def test_save_batch_marks_anomalies_and_assigns_tactic(
+async def test_save_batch_persists_anomaly_probability_and_tactic(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     repository = PostgresFlowRepository(session_factory)
 
     await repository.save_batch(
-        [_flow("10.0.0.1", "10.0.0.2", "tcp", "SF", orig_bytes=9000)]
+        [
+            _flow(
+                "10.0.0.1",
+                "10.0.0.2",
+                "tcp",
+                "SF",
+                anomaly_probability=0.92,
+                mitre_tactic="TA0010",
+            )
+        ]
     )
 
     async with session_factory() as session:
@@ -127,31 +140,25 @@ async def test_save_batch_marks_anomalies_and_assigns_tactic(
         )
 
     assert row is not None
+    assert row.anomaly_probability == 0.92
     assert row.is_anomaly is True
-    assert row.anomaly_score >= 0.75
     assert row.tactic_id is not None
     assert tactic is not None
     assert tactic.mitre_id == "TA0010"
 
 
-async def test_save_batch_assigns_c2_tactic_for_rapid_burst(
+async def test_save_batch_normal_flow_has_no_tactic(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     repository = PostgresFlowRepository(session_factory)
 
     await repository.save_batch(
-        [_flow("10.0.0.1", "10.0.0.2", "tcp", "SF", iat_ms=1.0)]
+        [_flow("10.0.0.1", "10.0.0.2", "tcp", "SF", anomaly_probability=0.05)]
     )
 
     async with session_factory() as session:
         row = await session.scalar(select(FactNetworkFlow))
-        tactic = await session.scalar(
-            select(DimMitreTactic).where(
-                DimMitreTactic.tactic_id == row.tactic_id
-            )
-        )
 
     assert row is not None
-    assert row.is_anomaly is True
-    assert tactic is not None
-    assert tactic.mitre_id == "TA0011"
+    assert row.is_anomaly is False
+    assert row.tactic_id is None

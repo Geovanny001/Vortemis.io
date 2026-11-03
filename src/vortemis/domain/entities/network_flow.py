@@ -21,6 +21,8 @@ class NetworkFlow:
     duration: float
     iat_ms: float | None = None
     conn_state: str | None = None
+    anomaly_probability: float = 0.0
+    mitre_tactic: str | None = None
     flow_id: UUID = field(default_factory=uuid4)
 
     def __post_init__(self) -> None:
