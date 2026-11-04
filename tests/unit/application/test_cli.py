@@ -1,4 +1,4 @@
-from vortemis.entrypoints.cli import BANNER, CREDITS, print_banner
+from vortemis.banner import BANNER, CREDITS, print_banner
 
 
 def test_print_banner_prints_banner_and_credits(capsys) -> None:

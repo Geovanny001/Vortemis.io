@@ -6,11 +6,12 @@ Fuente de verdad: `Context_vortemis_puro.md` (especificación original). Objetiv
 - [x] Fase 8 (parcial): `bayesian_pytorch_engine.py` con `TrafficAutoencoder`, `BayesianPyTorchEngine` (carga `.pt`, predice P(anomalía)) y `classify_mitre_tactic` (5 reglas). Smoke-test verde.
 - [x] Fase 9: `scripts/train_gpu.py` (CUDA) y `scripts/generate_zeek_traffic.py` (10k flujos con 5 campañas MITRE).
 - [x] Fase 11: capa REST eliminada (`api.py`, `security.py`, `SocUser`, FastAPI/JWT del pyproject, servicio `api` del compose).
-- [ ] Fase 8 (resto): conectar el motor en `flow_normalizer.py` y `postgres_repository.py` (hoy el repo usa heurística vieja, no PyTorch).
-- [ ] Fase 10: esquema definitivo (`anomaly_probability`, `protocol_id`/`state_id`, `INET`, `ts_start`, checks).
-- [ ] Fase 12: dashboard Sección 6 (quitar login, filtro MITRE, ε=0.70, línea en histograma).
-- [ ] Fase 13: `config.py`, `banner.py`, refactor estructura, Dockerfile con torch CPU.
-- [ ] Tests: `test_pytorch_mitre_engine.py`.
+- [x] Fase 8 (resto): motor conectado en `flow_normalizer.py` (IAT por src_ip, PCR, is_failed_conn, vector 6-dim) y `postgres_repository.py` (usa `anomaly_probability` + `mitre_tactic`).
+- [x] Fase 10 (parcial): `anomaly_probability` en el modelo (pendiente renombrar a `protocol_id`/`state_id`/`INET`/`ts_start` si se quiere match 100% con spec).
+- [x] Fase 12: dashboard Sección 6 (sin auth, filtro MITRE, ε=0.70, línea en histograma, KPIs por táctica).
+- [x] Fase 13 (parcial): `config.py` (`Settings.from_env`), `banner.py`, Dockerfile con torch CPU, `.env.example` con `MODEL_PATH`/`EPSILON`.
+- [x] Tests: `test_pytorch_mitre_engine.py` (modelo, features, 5 reglas MITRE, predict).
+- [ ] Fase 13 (resto opcional): refactor de estructura (`infrastructure/ingestion/zeek_source.py`, `infrastructure/persistence/database.py`) — renombrar directorios e imports.
 
 ## Cómo retomar (para una sesión nueva)
 1. Lee `Context_vortemis_puro.md` (spec) y `docs/DECISIONS.md`.
