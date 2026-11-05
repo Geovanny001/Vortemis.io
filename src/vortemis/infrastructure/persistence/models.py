@@ -30,6 +30,15 @@ class DimMitreTactic(Base):
     tactic_name: Mapped[str] = mapped_column(String(50), nullable=False)
 
 
+class SocOperator(Base):
+    __tablename__ = "soc_operators"
+
+    operator_id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
+    role: Mapped[str] = mapped_column(String(20), nullable=False)
+
+
 class FactNetworkFlow(Base):
     __tablename__ = "fact_network_flows"
 

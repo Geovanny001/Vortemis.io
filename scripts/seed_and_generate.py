@@ -6,6 +6,7 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from vortemis.infrastructure.persistence.auth import seed_default_operators
 from vortemis.infrastructure.persistence.models import Base, DimMitreTactic
 
 DATABASE_URL_ENV = "DATABASE_URL"
@@ -116,6 +117,7 @@ async def seed_database() -> None:
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     async with session_factory() as session:
         await _seed_mitre_tactics(session)
+        await seed_default_operators(session)
         await session.commit()
     await engine.dispose()
 
