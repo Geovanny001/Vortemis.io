@@ -1,91 +1,66 @@
+import argparse
+import asyncio
 import sys
 from pathlib import Path
 
 import numpy
-import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from vortemis.application.use_cases.bayesian_pytorch_engine import (  # noqa: E402
-    FEATURE_DIM,
-    TrafficAutoencoder,
+from vortemis.application.use_cases.training import (
+    generate_legitimate_features,
+    train_and_export,
 )
 
-SEED = 42
-EPOCHS = 30
-BATCH_SIZE = 256
-LEARNING_RATE = 1e-3
-TRAIN_SAMPLES = 50000
 MODEL_PATH = Path(__file__).resolve().parents[1] / "models" / "vortemis_ae.pt"
 
 
-def _generate_legitimate_features(samples: int) -> numpy.ndarray:
-    rng = numpy.random.default_rng(SEED)
-    iat_ms = rng.exponential(120.0, size=samples)
-    orig_bytes = rng.lognormal(mean=5.0, sigma=1.2, size=samples)
-    resp_bytes = rng.lognormal(mean=5.5, sigma=1.2, size=samples)
-    duration = rng.exponential(0.5, size=samples)
-    pcr = rng.normal(0.0, 0.15, size=samples)
-    is_failed_conn = rng.choice([0.0, 1.0], size=samples, p=[0.95, 0.05])
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--from-log", dest="from_log", default=None)
+    parser.add_argument("--log-file", dest="log_file", default=None)
+    parser.add_argument("--output", default=str(MODEL_PATH))
+    args = parser.parse_args()
+
+    log_path = args.from_log or args.log_file
+    if log_path:
+        features = asyncio.run(_features_from_log(Path(log_path)))
+    else:
+        features = generate_legitimate_features()
+    train_and_export(Path(args.output), features=features)
+    print(f"Training complete. Model saved to {args.output}")
+
+
+async def _features_from_log(log_path: Path) -> numpy.ndarray:
+    import pandas
+
+    from vortemis.application.use_cases.bayesian_pytorch_engine import build_feature_vector
+    from vortemis.application.use_cases.mapper import ZeekFlowMapper
+    from vortemis.infrastructure.zeek.telemetry_source import ZeekTelemetrySource
+
+    mapper = ZeekFlowMapper()
+    records = [record async for record in ZeekTelemetrySource(log_path).stream()]
+    flows = [flow for flow in (mapper.to_flow(r.data) for r in records) if flow is not None]
+    frame = pandas.DataFrame(
+        {
+            "epoch": [flow.ts.value.timestamp() for flow in flows],
+            "src": [flow.src_ip.value for flow in flows],
+        }
+    ).sort_values(["src", "epoch"])
+    frame["iat"] = frame.groupby("src")["epoch"].diff() * 1000.0
+    iat = frame["iat"].reindex(range(len(flows))).to_numpy()
     return numpy.stack(
         [
-            numpy.log1p(iat_ms),
-            numpy.log1p(orig_bytes),
-            numpy.log1p(resp_bytes),
-            numpy.log1p(duration),
-            pcr,
-            is_failed_conn,
-        ],
-        axis=1,
+            build_feature_vector(
+                iat_ms=None if pandas.isna(iat[index]) else float(iat[index]),
+                orig_bytes=flow.orig_bytes,
+                resp_bytes=flow.resp_bytes,
+                duration=flow.duration,
+                conn_state=flow.conn_state,
+            )
+            for index, flow in enumerate(flows)
+        ]
     ).astype("float32")
-
-
-def _train(model: TrafficAutoencoder, features: numpy.ndarray, device: torch.device) -> None:
-    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
-    criterion = torch.nn.MSELoss()
-    tensor = torch.from_numpy(features).to(device)
-    model.to(device)
-    model.train()
-    sample_count = len(features)
-    for _ in range(EPOCHS):
-        permutation = torch.randperm(sample_count, device=device)
-        for start in range(0, sample_count, BATCH_SIZE):
-            indices = permutation[start : start + BATCH_SIZE]
-            batch = tensor[indices]
-            optimizer.zero_grad()
-            reconstructed = model(batch)
-            loss = criterion(reconstructed, batch)
-            loss.backward()
-            optimizer.step()
-
-
-def main() -> None:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    torch.manual_seed(SEED)
-    numpy.random.seed(SEED)
-    features = _generate_legitimate_features(TRAIN_SAMPLES)
-    mu = features.mean(axis=0)
-    sigma = features.std(axis=0)
-    standardized = (features - mu) / (sigma + 1e-8)
-    model = TrafficAutoencoder(FEATURE_DIM)
-    _train(model, standardized, device)
-    model.eval()
-    with torch.no_grad():
-        tensor = torch.from_numpy(standardized).to(device)
-        reconstructed = model(tensor)
-        error = ((tensor - reconstructed) ** 2).mean(dim=1).cpu().numpy()
-    tau = float(numpy.quantile(error, 0.95))
-    MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(
-        {
-            "model_state_dict": model.state_dict(),
-            "mu": mu,
-            "sigma": sigma,
-            "tau": tau,
-        },
-        MODEL_PATH,
-    )
-    print(f"Training complete on {device}. Model saved to {MODEL_PATH} (tau={tau:.6f})")
 
 
 if __name__ == "__main__":
