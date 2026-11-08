@@ -10,6 +10,7 @@ MODEL_PATH_ENV = "MODEL_PATH"
 DEFAULT_MODEL_PATH = "models/vortemis_ae.pt"
 EPSILON_ENV = "EPSILON"
 DEFAULT_EPSILON = 0.70
+CONTINUOUS_MODE_ENV = "CONTINUOUS_MODE"
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,6 +19,7 @@ class Settings:
     log_file: Path
     model_path: Path
     epsilon: float
+    continuous_mode: bool
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -26,4 +28,5 @@ class Settings:
             log_file=Path(os.getenv(LOG_FILE_ENV, DEFAULT_LOG_FILE)),
             model_path=Path(os.getenv(MODEL_PATH_ENV, DEFAULT_MODEL_PATH)),
             epsilon=float(os.getenv(EPSILON_ENV, str(DEFAULT_EPSILON))),
+            continuous_mode=os.getenv(CONTINUOUS_MODE_ENV, "false").lower() == "true",
         )
