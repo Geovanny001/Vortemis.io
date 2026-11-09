@@ -13,6 +13,8 @@ dependencies = [
     "streamlit>=1.40",
     "plotly>=5.24",
     "torch>=2.5",
+    "textual>=0.80.0",
+    "rich>=13.7.0",
 ]
 
 [tool.uv.sources]

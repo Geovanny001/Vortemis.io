@@ -1,14 +1,17 @@
 BANNER = (
-    "#   #  ###  ####  ##### ##### #   # ##### #####       #####  ###   ###\n"
-    "#   # #   # #   #   #   #     ## ##   #   #           #     #   # #   #\n"
-    "#   # #   # ####    #   ####  # # #   #   ####        ####  #   # #\n"
-    " # #  #   # #  #    #   #     #   #   #       #           # #   # #   #\n"
-    "  #    ###  #   #   #   ##### #   # ##### #####       #####  ###   ###"
+    "#   #  ###  ####  ##### ##### #   # ##### #####       #####  ###\n"
+    "#   # #   # #   #   #   #     ## ##   #   #             #   #   #\n"
+    "#   # #   # ####    #   ####  # # #   #   ####          #   #   #\n"
+    " # #  #   # #  #    #   #     #   #   #       #         #   #   #\n"
+    "  #    ###  #   #   #   ##### #   # ##### #####   #   #####  ###"
 )
 
-CREDITS = "Lead Developer: CRivera Marroquín, Carles Geovanny | Contributors: The Vortemis Team"
+CREDITS = "Contributors: The Vortemis.io Team"
+
+SUBTITLE = "Vortemis.io — Autonomous Passive Network Anomaly & MITRE ATT&CK Platform"
 
 
 def print_banner() -> None:
     print(BANNER)
     print(CREDITS)
+    print(SUBTITLE)
