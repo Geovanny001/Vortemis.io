@@ -1,25 +1,26 @@
-# Vortemis SOC
+# Vortemis.io
 
-Probabilistic passive SOC network telemetry analysis system.
+Autonomous passive network anomaly detection and MITRE ATT&CK mapping platform.
 
 ## Description
 
-Vortemis SOC is a probabilistic network telemetry analysis system with a
-passive SOC approach. It ingests massive network telemetry (Big Data) and
-uses Bayesian networks and mathematical inference to probabilistically detect
-cybersecurity anomalies and data exfiltration, going beyond static security
-rules.
+Vortemis.io ingests massive volumes of passive network telemetry (Big Data) and
+uses a PyTorch autoencoder with a Bayesian posterior to detect cybersecurity
+anomalies and data exfiltration, going beyond static security rules. Each
+detected anomaly is classified into a MITRE ATT&CK network tactic.
 
 ## Architecture & Tech Stack
 
 - **Architecture:** Strict hexagonal architecture
   (`domain` -> `application` -> `infrastructure` -> `entrypoints`).
 - **Python:** 3.14+
-- **Telemetry:** Zeek
-- **Data processing:** Pandas, NumPy
-- **Storage:** PostgreSQL 16 with SQLAlchemy 2.x (async) + asyncpg
-- **API:** FastAPI, Uvicorn, PyJWT
-- **UI:** Streamlit, Plotly
+- **Telemetry:** Zeek TSV/JSON and a native `tshark` live packet sensor.
+- **Inference:** PyTorch autoencoder (`6 -> 16 -> 3 -> 16 -> 6`) with a
+  Gaussian posterior and a 95th-percentile threshold `tau`.
+- **Data processing:** Pandas, NumPy.
+- **Storage:** PostgreSQL 16 with SQLAlchemy 2.x (async) + asyncpg.
+- **Web UI:** Streamlit, Plotly (dark SIEM console with native login + RBAC).
+- **Terminal UI:** Textual, Rich.
 
 ## Prerequisites
 
@@ -32,21 +33,54 @@ rules.
 docker compose up --build
 ```
 
-This starts the full ecosystem:
+This starts:
 
 - `db` - PostgreSQL 16 (port 5432).
-- `seed_and_ingest` - generates 5000 synthetic Zeek flows and ingests them.
-- `api` - FastAPI REST/WebSocket API (port 8000).
-- `dashboard` - Streamlit SIEM dashboard (port 8501).
+- `seed_and_ingest` - seeds the catalog and operators, generates a Zeek sample
+  and ingests it into the star schema.
+- `dashboard` - Streamlit SIEM console (port 8501).
 
 ## Local Development
 
 ```bash
 uv sync
 uv run python scripts/seed_and_generate.py
-uv run uvicorn vortemis.entrypoints.api:app --reload
+uv run python -m vortemis.entrypoints.cli
 uv run streamlit run src/vortemis/entrypoints/dashboard.py
 ```
+
+## Test Credentials
+
+The seed script creates two operators (`soc_operators` table):
+
+- Administrator: `admin_carles` / `VortemisAdmin2026!`
+- SOC Analyst: `soc_analyst` / `VortemisAnalyst2026!`
+
+Administrators may tune the probabilistic threshold `epsilon`; analysts have it
+locked (read-only policy).
+
+## Continuous Mode & Live Sensor
+
+Set `CONTINUOUS_MODE=true` to keep the ingestion CLI following the Zeek log
+(`follow=True`) and scoring new flows as they arrive.
+
+To capture live packets with `tshark` and emit Zeek-compatible `conn.log` rows:
+
+```bash
+uv run python -m vortemis.infrastructure.zeek.live_sensor --interface wlan0 --log-file conn.log
+```
+
+If `tshark` is not installed the sensor exits gracefully.
+
+## Terminal UI
+
+```bash
+uv run python -m vortemis.entrypoints.tui
+```
+
+Dark Textual console with five KPIs, a live `DataTable` refreshed every 2 s and
+keyboard shortcuts: `[a]` anomalies only, `[+]`/`[-]` threshold, `[r]` refresh,
+`[q]` quit.
 
 ## Environment Variables
 
@@ -54,38 +88,18 @@ See `.env.example` for the full list:
 
 - `DATABASE_URL` - async SQLAlchemy PostgreSQL connection string.
 - `LOG_FILE` - path to the Zeek log file to ingest.
-- `JWT_SECRET` - secret used to sign JWT tokens.
-- `API_PORT` - FastAPI port.
-- `DASHBOARD_PORT` - Streamlit port.
+- `MODEL_PATH` - path to the trained autoencoder checkpoint.
+- `EPSILON` - posterior anomaly threshold.
+- `CONTINUOUS_MODE` - `true` to follow the log continuously.
 
-## Seed Data
+## Tests
 
-The seed script (`scripts/seed_and_generate.py`) generates
-`data/samples/conn_massive.log` (5000 records) and populates the database with:
-
-- MITRE ATT&CK tactics catalog.
-- Two users:
-  - `admin_carles` / `VortemisAdmin2026!` (admin)
-  - `soc_analyst` / `VortemisAnalyst2026!` (analyst)
-
-## API
-
-Interactive docs are available at `http://localhost:8000/docs`.
-
-Main endpoints:
-
-- `POST /api/v1/auth/login`
-- `GET /api/v1/health`
-- `GET /api/v1/metrics/summary`
-- `GET /api/v1/flows`
-- `POST /api/v1/ingest/trigger`
-- `PATCH /api/v1/config/threshold`
-- `WEBSOCKET /ws/alerts`
-
-A Postman collection is available at
-`docs/vortemis_postman_collection.json`.
+```bash
+uv run ruff check .
+uv run pytest
+```
 
 ## License & Copyright
 
-Proprietary software developed by Carles Rivera and Contributors. See the
-[LICENSE](LICENSE) file for details.
+Proprietary software developed by Carles Rivera and the Vortemis.io Team. See
+the [LICENSE](LICENSE) file for details.
