@@ -1,3 +1,4 @@
+from collections.abc import Awaitable, Callable
 from dataclasses import replace
 
 import numpy
@@ -13,6 +14,8 @@ from vortemis.application.use_cases.bayesian_pytorch_engine import (
 from vortemis.application.use_cases.mapper import ZeekFlowMapper
 from vortemis.domain.entities.network_flow import NetworkFlow
 
+ProgressCallback = Callable[[int], Awaitable[None]]
+
 
 class FlowNormalizerUseCase:
     def __init__(
@@ -27,17 +30,27 @@ class FlowNormalizerUseCase:
         self._engine = engine
         self._last_timestamp_by_source: dict[str, float] = {}
 
-    async def execute(self, batch_size: int = 1000) -> int:
+    async def execute(
+        self,
+        batch_size: int = 1000,
+        on_progress: ProgressCallback | None = None,
+    ) -> int:
         batch: list[RawRecord] = []
         inserted = 0
         async for record in self._source.stream():
             batch.append(record)
             if len(batch) >= batch_size:
                 inserted += await self._flush(batch)
+                await self._notify(on_progress)
                 batch = []
         if batch:
             inserted += await self._flush(batch)
+            await self._notify(on_progress)
         return inserted
+
+    async def _notify(self, on_progress: ProgressCallback | None) -> None:
+        if on_progress is not None:
+            await on_progress(self._source.position)
 
     async def _flush(self, records: list[RawRecord]) -> int:
         flows = [

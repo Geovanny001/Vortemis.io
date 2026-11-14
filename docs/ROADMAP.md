@@ -108,3 +108,14 @@ Fuente de verdad: `Context_vortemis_puro.md` (especificación original). Objetiv
 - Rendimiento: caché de dimensiones por proceso.
 - Validación: 117 tests verdes; ruff limpio; prueba real en PostgreSQL con 5 líneas y 1 duplicado.
 - Próximo: offset persistido, Alembic y contrato de consulta con filtros y paginación.
+
+## 2026-11-14 - Motor: ingesta con estado y migraciones
+- Rama: `feat/stateful-ingestion`
+- Evidencia: `docs/evidence/2026-11-14-stateful-ingestion-and-migrations.md`
+- Estado: tabla `ingestion_state` con `source_path`, `device`, `inode`, `offset` y `updated_at`.
+- Reanudación: el CLI continúa desde el último offset confirmado y reinicia si el log se trunca o rota.
+- Progreso: `execute(on_progress=...)` y `position` en `TelemetrySourcePort`; escritura limitada a una cada 5 segundos.
+- Purga: borra `ingestion_state` al truncar los flujos.
+- Esquema: Alembic con revisión inicial `0001`; base de datos documentada en `docs/ops/DATABASE.md`.
+- Validación: 129 tests verdes; PostgreSQL real con reanudación, sin cambios y truncado.
+- Próximo: contrato de consulta, `EngineMetadataPort` y ciclo de vida del engine.

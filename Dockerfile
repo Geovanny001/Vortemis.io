@@ -8,6 +8,8 @@ RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/wh
 
 COPY src ./src
 COPY scripts ./scripts
+COPY alembic.ini ./
+COPY migrations ./migrations
 COPY README.md ./
 
 RUN pip install --no-cache-dir .

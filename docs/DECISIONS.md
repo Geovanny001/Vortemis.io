@@ -83,6 +83,16 @@ Registro de decisiones tomadas para que cualquier agente/sesión nueva no las de
 - **Sin Alembic**: `create_all` no añade índices ni columnas a tablas existentes; las bases ya creadas requieren migración manual.
 - **Datos previos**: los `flow_id` aleatorios existentes no se reescriben; una reingesta inserta una copia hasta purgar.
 
+## Motor: estado de ingesta y migraciones (2026-11-14)
+- **Estado**: tabla `ingestion_state` con una fila por `source_path`.
+- **Identidad del archivo**: `device` e `inode`; si cambian, se reinicia el offset.
+- **Reanudación**: si el tamaño es menor que el offset guardado, se empieza en 0.
+- **Progreso**: `on_progress` se llama tras cada lote confirmado; el offset se escribe como máximo cada 5 segundos.
+- **Corrección**: la idempotencia por `flow_id` sigue siendo la garantía; el offset solo evita reprocesar.
+- **Purga**: borra `ingestion_state` porque el log se reescribe.
+- **Migraciones**: Alembic con revisión `0001`; las bases creadas con `create_all` se adoptan con `alembic stamp head`.
+- **Imagen Docker**: incluye `alembic.ini` y `migrations/` para migrar dentro del contenedor.
+
 ## Convenciones de trabajo (2026-11-14)
 - **Estándar de PR**: `docs/ops/PULL_REQUESTS.md` y plantilla `.github/pull_request_template.md`.
 - **Un cambio lógico por PR**: código, tests, migración, documentación y evidencia en el mismo PR; no se abren PR de documentación separados.

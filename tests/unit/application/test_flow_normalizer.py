@@ -163,3 +163,22 @@ async def test_reprocessing_the_same_records_does_not_duplicate_flows() -> None:
     assert await first.execute() == 2
     assert await second.execute() == 0
     assert len(repository.saved_flows) == 2
+
+
+async def test_progress_reports_source_position_after_each_batch() -> None:
+    records = [
+        _record(str(index), f"10.0.0.{index}", index) for index in range(1, 6)
+    ]
+    positions: list[int] = []
+
+    async def on_progress(position: int) -> None:
+        positions.append(position)
+
+    use_case = FlowNormalizerUseCase(
+        source=FakeTelemetrySource(records),
+        repository=InMemoryFlowRepository(),
+    )
+
+    await use_case.execute(batch_size=2, on_progress=on_progress)
+
+    assert positions == [2, 4, 5]

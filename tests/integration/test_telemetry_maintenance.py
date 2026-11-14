@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import func, select
@@ -9,7 +10,11 @@ from vortemis.domain.value_objects.port import Port
 from vortemis.domain.value_objects.protocol import Protocol
 from vortemis.domain.value_objects.timestamp import Timestamp
 from vortemis.infrastructure.persistence.maintenance import purge_telemetry
-from vortemis.infrastructure.persistence.models import Base, FactNetworkFlow
+from vortemis.infrastructure.persistence.models import (
+    Base,
+    FactNetworkFlow,
+    IngestionState,
+)
 from vortemis.infrastructure.persistence.postgres_repository import (
     PostgresFlowRepository,
 )
@@ -40,6 +45,17 @@ async def test_purge_telemetry_removes_flows_and_rewrites_log(tmp_path: Path) ->
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     repository = PostgresFlowRepository(session_factory)
     await repository.save_batch([_flow()])
+    async with session_factory() as session:
+        session.add(
+            IngestionState(
+                source_path=str(tmp_path / "conn.log"),
+                device=0,
+                inode=0,
+                offset=42,
+                updated_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
     await engine.dispose()
 
     log_file = tmp_path / "conn.log"
@@ -50,7 +66,11 @@ async def test_purge_telemetry_removes_flows_and_rewrites_log(tmp_path: Path) ->
     engine = create_async_engine(database_url)
     async with async_sessionmaker(engine, expire_on_commit=False)() as session:
         count = await session.scalar(select(func.count()).select_from(FactNetworkFlow))
+        states = await session.scalar(
+            select(func.count()).select_from(IngestionState)
+        )
     await engine.dispose()
 
     assert count == 0
+    assert states == 0
     assert log_file.read_text(encoding="utf-8") == "\n".join(ZEEK_CONN_HEADER) + "\n"
