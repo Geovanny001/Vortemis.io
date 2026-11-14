@@ -33,6 +33,7 @@ services:
   dashboard:
     build: .
     command: streamlit run src/vortemis/entrypoints/dashboard.py --server.port 8501 --server.address 0.0.0.0
+    restart: unless-stopped
     ports:
       - "8501:8501"
     depends_on:
@@ -43,7 +44,7 @@ services:
       LOG_FILE: /app/data/samples/conn_massive.log
       MODEL_PATH: /app/models/vortemis_ae.pt
     volumes:
-      - ./data/samples:/app/data/samples:ro
+      - ./data/samples:/app/data/samples
 
 volumes:
   postgres_data:

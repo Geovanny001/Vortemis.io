@@ -20,6 +20,7 @@ from vortemis.application.validation import (
     validate_port_filter,
 )
 from vortemis.infrastructure.persistence.auth import authenticate_operator
+from vortemis.infrastructure.persistence.maintenance import purge_telemetry
 from vortemis.infrastructure.persistence.models import (
     DimConnState,
     DimMitreTactic,
@@ -185,8 +186,25 @@ def load_model_metadata(model_path: Path) -> dict | None:
     }
 
 
-def render_status_bar(username: str, role: str, tau: float | None) -> None:
+def _log_status(log_file: Path) -> tuple[str, str]:
+    if not log_file.exists():
+        return ("LOG MISSING", "#ef4444")
+    age = max(0.0, time.time() - log_file.stat().st_mtime)
+    if age <= 10.0:
+        return ("RECEIVING LIVE", "#10b981")
+    if age <= 300.0:
+        return (f"IDLE {age:.0f}s", "#f59e0b")
+    return ("IDLE", "#f59e0b")
+
+
+def render_status_bar(
+    username: str,
+    role: str,
+    tau: float | None,
+    log_file: Path,
+) -> None:
     tau_text = f"tau={tau:.4f}" if tau is not None else "tau=N/A"
+    sensor_text, sensor_color = _log_status(log_file)
     st.markdown(
         f"""
         <div style="padding:8px 0 16px 0;">
@@ -194,8 +212,8 @@ def render_status_bar(username: str, role: str, tau: float | None) -> None:
             VORTEMIS.IO // AUTONOMOUS PASSIVE NETWORK ANOMALY &amp; MITRE ATT&amp;CK ENGINE
           </div>
           <div style="margin-top:8px;">
-            <span class="status-badge"><span class="dot"></span>
-              SENSOR: PASSIVE OUT-OF-BAND (ACTIVE)</span>
+            <span class="status-badge"><span class="dot" style="background:{sensor_color};"></span>
+              SENSOR: {sensor_text}</span>
             <span class="status-badge"><span class="dot"></span>
               ENGINE: PYTORCH AUTOENCODER (R^6 -&gt; R^3 -&gt; R^6 | {tau_text})</span>
             <span class="status-badge"><span class="dot"></span>
@@ -252,7 +270,7 @@ def apply_filters(frame: pandas.DataFrame, filters: dict) -> pandas.DataFrame:
     return filtered
 
 
-def render_sidebar(role: str) -> dict:
+def render_sidebar(role: str, database_url: str, log_file: Path) -> dict:
     with st.sidebar:
         st.subheader(f"Operator: {st.session_state.username}")
         st.write(f"Role: **{role.upper()}**")
@@ -263,8 +281,8 @@ def render_sidebar(role: str) -> dict:
         st.divider()
         st.subheader("Filters")
         date_range = st.date_input("Date Range", value=())
-        src_ip = st.text_input("Source IP")
-        dst_port = st.text_input("Destination Port")
+        src_ip = st.text_input("Source IP", placeholder="e.g., 192.168.1.50")
+        dst_port = st.text_input("Destination Port", placeholder="e.g., 22 or 443")
         protocols = st.multiselect("Protocol", ["TCP", "UDP", "ICMP"])
 
         if role == "admin":
@@ -287,6 +305,25 @@ def render_sidebar(role: str) -> dict:
         for error in (ip_error, port_error, date_error):
             if error:
                 st.error(error)
+
+        if role == "admin":
+            st.divider()
+            with st.expander("Danger Zone"):
+                st.caption("Delete all telemetry and reset the log to its header.")
+                confirmed = st.checkbox("I understand this cannot be undone")
+                if st.button(
+                    "Purge All Telemetry Data",
+                    disabled=not confirmed,
+                    use_container_width=True,
+                ):
+                    with st.spinner("Purging telemetry..."):
+                        try:
+                            asyncio.run(purge_telemetry(database_url, log_file))
+                        except Exception as exc:
+                            st.error(f"Purge failed: {exc}")
+                        else:
+                            st.success("Telemetry purged")
+                            st.rerun()
 
         return {
             "src_ip": src_ip if not ip_error else "",
@@ -372,30 +409,53 @@ def render_tab_forensic(frame: pandas.DataFrame, metadata: dict | None) -> None:
         return
 
     st.subheader("Individual Flow Inspector (Deep-Dive)")
-    flow_ids = frame["flow_id"].tolist()
-    selected_id = st.selectbox("Select flow_id", flow_ids)
+    choices: list[tuple[str, str]] = []
+    for _, row in frame.iterrows():
+        risk = float(row["anomaly_probability"]) * 100.0
+        tactic = (
+            "NO-TACTIC"
+            if pandas.isna(row["mitre_tactic"])
+            else str(row["mitre_tactic"])
+        )
+        protocol = str(row["protocol"]).upper()
+        label = (
+            f"[Risk: {risk:.1f}% | {tactic}] "
+            f"{row['src_ip']} -> {row['dst_ip']}:{row['dst_port']} ({protocol})"
+        )
+        choices.append((f"{label} | {str(row['flow_id'])[:8]}", str(row["flow_id"])))
+    selected_label = st.selectbox("Select flow", [choice[0] for choice in choices])
+    selected_id = next(flow_id for label, flow_id in choices if label == selected_label)
     row = frame[frame["flow_id"] == selected_id].iloc[0]
 
+    iat_ms = None if pandas.isna(row["iat_ms"]) else float(row["iat_ms"])
+    conn_state = None if pandas.isna(row["conn_state"]) else str(row["conn_state"])
     features = build_feature_vector(
-        iat_ms=row["iat_ms"],
+        iat_ms=iat_ms,
         orig_bytes=int(row["orig_bytes"]),
         resp_bytes=int(row["resp_bytes"]),
         duration=float(row["duration"]),
-        conn_state=row["conn_state"],
+        conn_state=conn_state,
     )
     feature_frame = pandas.DataFrame(
-        {"feature": _FEATURE_LABELS, "value": features}
+        {"Feature": _FEATURE_LABELS, "Current Value": features}
     )
-    st.dataframe(feature_frame, hide_index=True)
-
     if metadata is not None:
         z = (features - metadata["mu"]) / (metadata["sigma"] + 1e-8)
-        st.write("Z-score vs. model mean (mu):")
-        z_frame = pandas.DataFrame({"feature": _FEATURE_LABELS, "z_score": z})
-        st.dataframe(z_frame, hide_index=True)
+        feature_frame["Z-Score"] = z
+        feature_frame["Status"] = [
+            (
+                "Normal"
+                if abs(value) < 2.0
+                else "Elevated"
+                if abs(value) < 3.0
+                else "Critical Deviation"
+            )
+            for value in z
+        ]
+    st.dataframe(feature_frame, hide_index=True, use_container_width=True)
 
     tactic = row["mitre_tactic"]
-    if tactic and tactic in _MITRE_FORMULAS:
+    if isinstance(tactic, str) and tactic in _MITRE_FORMULAS:
         st.info(f"MITRE {tactic} triggered: {_MITRE_FORMULAS[tactic]}")
 
 
@@ -403,7 +463,8 @@ def render_tab_mitre_matrix(frame: pandas.DataFrame) -> None:
     st.subheader("MITRE ATT&CK Network Matrix")
     tactic_frame = frame[frame["mitre_tactic"].notna()]
     total_alerts = len(tactic_frame)
-    for mitre_id, name in MITRE_TACTICS.items():
+    columns = st.columns(2)
+    for index, (mitre_id, name) in enumerate(MITRE_TACTICS.items()):
         count = int((tactic_frame["mitre_tactic"] == mitre_id).sum())
         pct = (count / total_alerts * 100) if total_alerts else 0.0
         formula = _MITRE_FORMULAS.get(mitre_id, "")
@@ -411,23 +472,24 @@ def render_tab_mitre_matrix(frame: pandas.DataFrame) -> None:
         top_ips = (
             frame[frame["mitre_tactic"] == mitre_id]["src_ip"].value_counts().head(3).index.tolist()
         )
-        st.markdown(
-            f"""
-            <div class="metric-card" style="border-top-color:{color};">
-              <div style="font-size:16px; font-weight:700; color:{color};">
-                {mitre_id} — {name}
-              </div>
-              <div class="mono" style="color:#9ca3af; font-size:12px;">{formula}</div>
-              <div style="color:#e5e7eb; margin-top:6px;">
-                Events: {count} ({pct:.1f}% of alerts)
-              </div>
-              <div class="mono" style="color:#9ca3af; font-size:12px;">
-                Top sources: {', '.join(top_ips) if top_ips else 'none'}
-              </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        with columns[index % 2]:
+            st.markdown(
+                f"""
+                <div class="metric-card" style="border-top-color:{color};">
+                  <div style="font-size:16px; font-weight:700; color:{color};">
+                    {mitre_id} — {name}
+                  </div>
+                  <div class="mono" style="color:#9ca3af; font-size:12px;">{formula}</div>
+                  <div style="color:#e5e7eb; margin-top:6px;">
+                    Events: {count} ({pct:.1f}% of alerts)
+                  </div>
+                  <div class="mono" style="color:#9ca3af; font-size:12px;">
+                    Top sources: {', '.join(top_ips) if top_ips else 'none'}
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 
 def render_tab_diagnostics(metadata: dict | None, log_file: Path) -> None:
@@ -443,11 +505,37 @@ def render_tab_diagnostics(metadata: dict | None, log_file: Path) -> None:
         st.dataframe(sigma_frame, hide_index=True)
 
     st.subheader("Sensor Log File Status")
+    sensor_text, _ = _log_status(log_file)
+    st.write(f"Status: **{sensor_text}**")
     if log_file.exists():
         size_kb = log_file.stat().st_size / 1024
         st.write(f"`{log_file}` — {size_kb:.2f} KB")
     else:
         st.warning(f"`{log_file}` not found")
+
+
+def render_empty_state(log_file: Path) -> None:
+    st.markdown(
+        f"""
+        <div class="metric-card" style="border-top-color:#06b6d4; padding:28px;">
+          <div style="font-size:20px; font-weight:800; color:#e5e7eb;">
+            No telemetry yet
+          </div>
+          <div style="color:#9ca3af; margin-top:8px;">
+            The database is connected, but there are no network flows to analyze.
+          </div>
+          <div class="mono" style="color:#06b6d4; margin-top:14px;">
+            uv run python -m vortemis.infrastructure.zeek.live_sensor<br>
+            --interface wlan0 --log-file {log_file}
+          </div>
+          <div style="color:#9ca3af; margin-top:10px;">
+            Start the sensor or append a Zeek conn.log. The dashboard will refresh automatically.
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.info("Waiting for telemetry...")
 
 
 def render_login(database_url: str) -> None:
@@ -505,11 +593,20 @@ def main() -> None:
         st.stop()
 
     metadata = load_model_metadata(model_path)
-    render_status_bar(username, role, metadata["tau"] if metadata else None)
-    render_kpis(frame, 0.70)
+    render_status_bar(
+        username,
+        role,
+        metadata["tau"] if metadata else None,
+        log_file,
+    )
 
-    filters = render_sidebar(role)
+    filters = render_sidebar(role, database_url, log_file)
+    if frame.empty:
+        render_empty_state(log_file)
+        st.stop()
+
     filtered = apply_filters(frame, filters)
+    render_kpis(filtered, filters["threshold"])
 
     tab1, tab2, tab3, tab4 = st.tabs(
         [

@@ -73,3 +73,11 @@ Fuente de verdad: `Context_vortemis_puro.md` (especificación original). Objetiv
 - Estado: baseline completado; las mejoras de modelo quedan como trabajo futuro.
 - Foco actual: UI y operaciones (dashboard, seguridad, retención y despliegue).
 - Decisión pendiente: autoencoder más grande + features de comportamiento, o modelo híbrido.
+
+## 2026-11-14 — UI/ops dashboard
+- Rama: `feat/ui-ops-dashboard`
+- Evidencia: `docs/evidence/2026-11-14-ui-ops-dashboard.md`
+- Cambios: estado vacío, estado dinámico del sensor, KPIs con umbral real, placeholders, matriz MITRE en 2 columnas, inspector legible y purga admin.
+- Ops: cabecera Zeek compartida, purga de telemetría, volumen del dashboard escribible y scripts de arranque corregidos.
+- Validación: 99 tests verdes y dashboard `200 ok`.
+- Próximo: revisión visual y luego logs estructurados, secretos, rate limiting y retención.

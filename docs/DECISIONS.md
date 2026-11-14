@@ -50,3 +50,10 @@ Registro de decisiones tomadas para que cualquier agente/sesión nueva no las de
 - **Resultado**: las 6 features tienen señal (AUC supervisado 0.998), pero el autoencoder actual solo llega a AUC 0.694; el autoencoder 6→32→8→32→6 sube a 0.868 y 56% de recall con FPR 5%.
 - **Estado**: baseline completado. Las mejoras de modelo quedan como trabajo futuro; el foco actual es UI/ops.
 - **Decisión pendiente**: autoencoder más grande + features de comportamiento, o modelo híbrido supervisado.
+
+## UI/ops dashboard (2026-11-14)
+- **Purga admin**: `TRUNCATE`/`DELETE` + rewrite del log con `ZEEK_CONN_HEADER`; solo rol `admin` y con confirmación.
+- **Dashboard escribible en Docker**: el mount de `data/samples` deja de ser `:ro` para permitir la purga.
+- **Estado del sensor**: se calcula por `mtime` del log; no se hardcodea “ACTIVE”.
+- **Tests**: smoke tests de Streamlit con datos y estado vacío; test de integración de purga.
+- **Validación**: `ruff` limpio y 99 tests verdes.

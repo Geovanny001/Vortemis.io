@@ -6,6 +6,8 @@ from pathlib import Path
 
 import aiofiles
 
+from vortemis.infrastructure.zeek.header import ZEEK_CONN_HEADER
+
 _TSHARK_FIELDS = [
     "frame.time_epoch",
     "ip.src",
@@ -20,17 +22,6 @@ _TSHARK_FIELDS = [
     "tcp.flags.ack",
     "tcp.flags.reset",
     "tcp.flags.fin",
-]
-
-_ZEK_HEADER = [
-    "#separator \\x09",
-    "#set_separator\t,",
-    "#empty_field\t(empty)",
-    "#unset_field\t-",
-    "#path\tconn",
-    "#open\t2026-11-05-00-00-00",
-    "#fields\tts\tuid\tid.orig_h\tid.orig_p\tid.resp_h\tid.resp_p\tproto\tservice\tduration\torig_bytes\tresp_bytes\tconn_state",
-    "#types\ttime\tstring\taddr\tport\taddr\tport\tenum\tstring\tinterval\tcount\tcount\tstring",
 ]
 
 
@@ -184,7 +175,7 @@ class LiveTsharkSensor:
             return
         self._log_file.parent.mkdir(parents=True, exist_ok=True)
         async with aiofiles.open(self._log_file, "w") as handle:
-            await handle.write("\n".join(_ZEK_HEADER) + "\n")
+            await handle.write("\n".join(ZEEK_CONN_HEADER) + "\n")
 
     async def run(self) -> None:
         if not self.tshark_available():
