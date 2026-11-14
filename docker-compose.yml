@@ -17,13 +17,16 @@ services:
 
   seed_and_ingest:
     build: .
-    command: sh -c "python scripts/seed_and_generate.py && python -m vortemis.entrypoints.cli"
+    command: sh -c "python scripts/seed_and_generate.py --generate-sample && python -m vortemis.entrypoints.cli"
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql+asyncpg://vortemis:vortemis@db:5432/vortemis
       LOG_FILE: /app/data/samples/conn_massive.log
+      MODEL_PATH: /app/models/vortemis_ae.pt
+      CONTINUOUS_MODE: "true"
     volumes:
       - ./data/samples:/app/data/samples
 
@@ -38,6 +41,7 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://vortemis:vortemis@db:5432/vortemis
       LOG_FILE: /app/data/samples/conn_massive.log
+      MODEL_PATH: /app/models/vortemis_ae.pt
     volumes:
       - ./data/samples:/app/data/samples:ro
 
