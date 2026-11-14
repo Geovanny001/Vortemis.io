@@ -72,3 +72,13 @@ Registro de decisiones tomadas para que cualquier agente/sesión nueva no las de
 - **Composition root**: `entrypoints/container.py`.
 - **Sin API REST**: las presentaciones usan el servicio directamente; el contrato queda listo para desktop o React.
 - **Repositorio**: se mantiene en el mismo repo; monorepo vs repo separado se decide cuando el frontend sea real.
+
+## Motor: identidad e idempotencia (2026-11-14)
+- **Identidad**: `flow_fingerprint` en `domain/value_objects/`; uuid5 sobre `ts` (6 decimales), 5-tupla y protocolo.
+- **Mapper**: asigna el `flow_id` determinista; no se usa `uuid4` en la ruta de ingesta.
+- **Upsert**: `INSERT ... ON CONFLICT (flow_id) DO NOTHING` en PostgreSQL y SQLite. La idempotencia vive en la base de datos.
+- **Contrato**: `FlowRepositoryPort.save_batch` devuelve el número de insertados y `FlowNormalizerUseCase.execute` lo agrega.
+- **Índices**: `ts`, `src_ip`, `is_anomaly`, `anomaly_probability`, `tactic_id`.
+- **Dimensiones**: caché por proceso; las tácticas son fijas y los protocolos y estados son estables.
+- **Sin Alembic**: `create_all` no añade índices ni columnas a tablas existentes; las bases ya creadas requieren migración manual.
+- **Datos previos**: los `flow_id` aleatorios existentes no se reescriben; una reingesta inserta una copia hasta purgar.

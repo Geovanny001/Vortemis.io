@@ -98,3 +98,13 @@ Fuente de verdad: `Context_vortemis_puro.md` (especificación original). Objetiv
 - Validación: 108 tests verdes; dashboard `200 ok`.
 - Próximo: filtros/paginación SQL, modularizar la UI y elegir la presentación (Streamlit, Flet/NiceGUI o React).
 - Handoff de la jornada: `docs/handoff/2026-11-14.md`
+
+## 2026-11-14 - Motor: ingesta idempotente e índices
+- Rama: `feat/engine-hardening`
+- Evidencia: `docs/evidence/2026-11-14-engine-idempotent-ingestion.md`
+- Identidad: `flow_fingerprint` (uuid5 sobre ts, 5-tupla y protocolo) y `flow_id` determinista en el mapper.
+- Ingesta: `ON CONFLICT (flow_id) DO NOTHING` en PostgreSQL y SQLite; `save_batch` devuelve insertados.
+- Esquema: índices en `ts`, `src_ip`, `is_anomaly`, `anomaly_probability` y `tactic_id`.
+- Rendimiento: caché de dimensiones por proceso.
+- Validación: 117 tests verdes; ruff limpio; prueba real en PostgreSQL con 5 líneas y 1 duplicado.
+- Próximo: offset persistido, Alembic y contrato de consulta con filtros y paginación.
