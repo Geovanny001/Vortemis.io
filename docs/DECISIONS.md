@@ -72,3 +72,23 @@ Registro de decisiones tomadas para que cualquier agente/sesión nueva no las de
 - **Composition root**: `entrypoints/container.py`.
 - **Sin API REST**: las presentaciones usan el servicio directamente; el contrato queda listo para desktop o React.
 - **Repositorio**: se mantiene en el mismo repo; monorepo vs repo separado se decide cuando el frontend sea real.
+
+## Motor: identidad e idempotencia (2026-11-14)
+- **Identidad**: `flow_fingerprint` en `domain/value_objects/`; uuid5 sobre `ts` (6 decimales), 5-tupla y protocolo.
+- **Mapper**: asigna el `flow_id` determinista; no se usa `uuid4` en la ruta de ingesta.
+- **Upsert**: `INSERT ... ON CONFLICT (flow_id) DO NOTHING` en PostgreSQL y SQLite. La idempotencia vive en la base de datos.
+- **Contrato**: `FlowRepositoryPort.save_batch` devuelve el número de insertados y `FlowNormalizerUseCase.execute` lo agrega.
+- **Índices**: `ts`, `src_ip`, `is_anomaly`, `anomaly_probability`, `tactic_id`.
+- **Dimensiones**: caché por proceso; las tácticas son fijas y los protocolos y estados son estables.
+- **Sin Alembic**: `create_all` no añade índices ni columnas a tablas existentes; las bases ya creadas requieren migración manual.
+- **Datos previos**: los `flow_id` aleatorios existentes no se reescriben; una reingesta inserta una copia hasta purgar.
+
+## Convenciones de trabajo (2026-11-14)
+- **Estándar de PR**: `docs/ops/PULL_REQUESTS.md` y plantilla `.github/pull_request_template.md`.
+- **Un cambio lógico por PR**: código, tests, migración, documentación y evidencia en el mismo PR; no se abren PR de documentación separados.
+- **Pull requests en inglés**: título `type: summary`, cuerpo y comentarios, incluidos los de documentación.
+- **Releases en inglés**: tag kebab-case creado antes del PR y apuntando al head de la rama.
+- **Validación previa**: `ruff check .` y `pytest` en verde, con la salida real en el cuerpo del PR.
+- **Commits en inglés**: mensajes y nombres de archivo en inglés; la documentación interna puede seguir en español.
+- **Sin emojis** en README, PR, releases ni documentación.
+- **Merge**: merge commit, CI en verde y rama eliminada.

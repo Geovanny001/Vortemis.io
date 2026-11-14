@@ -44,7 +44,7 @@ class FactNetworkFlow(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     flow_id: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
-    src_ip: Mapped[str] = mapped_column(String(64), nullable=False)
+    src_ip: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     dst_ip: Mapped[str] = mapped_column(String(64), nullable=False)
     src_port: Mapped[int] = mapped_column(nullable=False)
     dst_port: Mapped[int] = mapped_column(nullable=False)
@@ -55,12 +55,18 @@ class FactNetworkFlow(Base):
         ForeignKey("dim_conn_states.id"), nullable=True
     )
     tactic_id: Mapped[int | None] = mapped_column(
-        ForeignKey("dim_mitre_tactics.tactic_id"), nullable=True
+        ForeignKey("dim_mitre_tactics.tactic_id"), nullable=True, index=True
     )
-    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ts: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
     orig_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
     resp_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
     duration: Mapped[float] = mapped_column(Float, nullable=False)
     iat_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
-    anomaly_probability: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
-    is_anomaly: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    anomaly_probability: Mapped[float] = mapped_column(
+        Float, default=0.0, nullable=False, index=True
+    )
+    is_anomaly: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, index=True
+    )

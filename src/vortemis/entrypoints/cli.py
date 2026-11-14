@@ -46,7 +46,8 @@ async def main() -> None:
         repository=repository,
         engine=inference_engine,
     )
-    await use_case.execute()
+    inserted = await use_case.execute()
+    print(f"flows persisted: {inserted}")
     if settings.continuous_mode:
         await _run_continuously(
             settings,

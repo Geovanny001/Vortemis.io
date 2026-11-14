@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator
+from dataclasses import replace
 
 import pytest
 from sqlalchemy import func, select
@@ -162,3 +163,39 @@ async def test_save_batch_normal_flow_has_no_tactic(
     assert row is not None
     assert row.is_anomaly is False
     assert row.tactic_id is None
+
+
+async def test_save_batch_is_idempotent_for_repeated_flows(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    repository = PostgresFlowRepository(session_factory)
+    flow = _flow("10.0.0.1", "10.0.0.2", "tcp", "SF")
+
+    first = await repository.save_batch([flow])
+    second = await repository.save_batch([replace(flow)])
+
+    async with session_factory() as session:
+        fact_count = await session.scalar(
+            select(func.count()).select_from(FactNetworkFlow)
+        )
+
+    assert first == 1
+    assert second == 0
+    assert fact_count == 1
+
+
+async def test_save_batch_deduplicates_within_a_single_batch(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    repository = PostgresFlowRepository(session_factory)
+    flow = _flow("10.0.0.1", "10.0.0.2", "tcp", "SF")
+
+    inserted = await repository.save_batch([flow, replace(flow)])
+
+    async with session_factory() as session:
+        fact_count = await session.scalar(
+            select(func.count()).select_from(FactNetworkFlow)
+        )
+
+    assert inserted == 1
+    assert fact_count == 1

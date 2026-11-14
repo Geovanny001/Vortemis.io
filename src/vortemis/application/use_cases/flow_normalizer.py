@@ -27,27 +27,29 @@ class FlowNormalizerUseCase:
         self._engine = engine
         self._last_timestamp_by_source: dict[str, float] = {}
 
-    async def execute(self, batch_size: int = 1000) -> None:
+    async def execute(self, batch_size: int = 1000) -> int:
         batch: list[RawRecord] = []
+        inserted = 0
         async for record in self._source.stream():
             batch.append(record)
             if len(batch) >= batch_size:
-                await self._flush(batch)
+                inserted += await self._flush(batch)
                 batch = []
         if batch:
-            await self._flush(batch)
+            inserted += await self._flush(batch)
+        return inserted
 
-    async def _flush(self, records: list[RawRecord]) -> None:
+    async def _flush(self, records: list[RawRecord]) -> int:
         flows = [
             flow
             for flow in (self._mapper.to_flow(record.data) for record in records)
             if flow is not None
         ]
         if not flows:
-            return
+            return 0
         flows = self._attach_inter_arrival(flows)
         flows = self._attach_anomalies(flows)
-        await self._repository.save_batch(flows)
+        return await self._repository.save_batch(flows)
 
     def _attach_inter_arrival(self, flows: list[NetworkFlow]) -> list[NetworkFlow]:
         ordered_indices = sorted(

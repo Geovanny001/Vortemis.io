@@ -144,3 +144,22 @@ async def test_iat_persists_across_single_record_batches() -> None:
         repository.saved_flows, key=lambda flow: flow.ts.value.timestamp()
     )
     assert [flow.iat_ms for flow in saved] == [None, 1000.0, 1000.0]
+
+
+async def test_reprocessing_the_same_records_does_not_duplicate_flows() -> None:
+    records = [
+        _record("10.0", "10.0.0.1", 1),
+        _record("11.0", "10.0.0.1", 2),
+    ]
+    repository = InMemoryFlowRepository()
+
+    first = FlowNormalizerUseCase(
+        source=FakeTelemetrySource(records), repository=repository
+    )
+    second = FlowNormalizerUseCase(
+        source=FakeTelemetrySource(records), repository=repository
+    )
+
+    assert await first.execute() == 2
+    assert await second.execute() == 0
+    assert len(repository.saved_flows) == 2
