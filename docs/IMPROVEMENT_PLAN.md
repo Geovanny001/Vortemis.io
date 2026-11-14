@@ -176,7 +176,7 @@ docs: record p0 ingestion evidence
 - [x] P0-02: IAT persistente entre lotes.
 - [x] P0-03: truncado y rotación del log.
 - [x] P0-04: timestamps y puertos UDP del sensor.
-- [x] P0-05: Docker con modelo y modo continuo (validación estática; build pendiente).
+- [x] P0-05: Docker con modelo y modo continuo (build verificado en GitHub Actions).
 - [x] P0-06: seed no destructivo.
 - [x] P0-07: carga segura del checkpoint.
 - [x] P0-08: suite de regresión completa (83 tests).

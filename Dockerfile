@@ -8,6 +8,7 @@ RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/wh
 
 COPY src ./src
 COPY scripts ./scripts
+COPY README.md ./
 
 RUN pip install --no-cache-dir .
 
