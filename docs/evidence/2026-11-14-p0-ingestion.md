@@ -246,10 +246,117 @@ $ python -m uv run pytest
 69 passed in 7.34s
 ```
 
-## 7. Próximo paso
+## 7. Fixes aplicados (P0-03 y P0-04)
 
-1. P0-03: detectar truncado y rotación en `telemetry_source.py`.
-2. P0-04: corregir timestamps y puertos UDP en `live_sensor.py`.
-3. P0-05/P0-06: Docker con modelo y seed no destructivo.
-4. P0-07: carga segura del checkpoint.
-5. Registrar cada fix en este documento antes de hacer commit.
+### P0-03 — Truncado y rotación
+
+Validación runtime:
+
+```text
+truncate: C1 C2 C3
+```
+
+El follower detecta `st_size < position` y hace `seek(0)`. Si cambia la identidad `(st_dev, st_ino)`, cierra y reabre el archivo. En Windows no se puede reemplazar un archivo mientras está abierto, así que la rotación se valida con un test que simula el cambio de inodo.
+
+Archivos:
+
+- `src/vortemis/infrastructure/zeek/telemetry_source.py`
+- `tests/unit/infrastructure/test_follow_source.py`
+
+### P0-04 — Timestamps y puertos UDP del sensor
+
+Validación runtime:
+
+```text
+udp_ports: 5353 53
+flow_timestamps: [1.0, 5.0]
+```
+
+El parser usa los campos TCP o UDP según el protocolo, descarta ICMP sin puertos y cada flujo renderizado usa su propio `first_ts`.
+
+Archivos:
+
+- `src/vortemis/infrastructure/zeek/live_sensor.py`
+- `tests/unit/infrastructure/test_live_sensor.py`
+
+## 8. Verificación final
+
+```text
+$ python -m uv run ruff check .
+All checks passed!
+
+$ python -m uv run pytest
+74 passed in 7.35s
+```
+
+## 9. Fixes aplicados (P0-05, P0-06 y P0-07)
+
+### P0-05 — Docker con modelo y modo continuo
+
+- `Dockerfile`: instala torch antes de copiar el código, copia `models/` y define `MODEL_PATH=/app/models/vortemis_ae.pt`.
+- `docker-compose.yml`: `CONTINUOUS_MODE: "true"`, `MODEL_PATH` y `restart: unless-stopped` para el ingestor.
+- `seed_and_ingest` usa `--generate-sample`, que no sobrescribe un log existente.
+- Validación: `tests/test_deployment.py`.
+- Limitación: Docker no está instalado en esta máquina, así que el `docker build` queda pendiente. La configuración se validó de forma estática.
+
+### P0-06 — Seed no destructivo
+
+Validación runtime en un directorio temporal:
+
+```text
+default_lines=8
+default_preserved=True
+sample_lines=5008
+sample_preserved_without_force=True
+force_restored=True
+force_lines=5008
+```
+
+Comportamiento:
+
+- Sin flags: crea un log solo con cabeceras si no existe; no toca un log existente.
+- `--generate-sample`: genera 5000 flujos si el archivo no existe.
+- `--generate-sample --force`: sobrescribe un log existente.
+
+Archivos:
+
+- `scripts/seed_and_generate.py`
+- `tests/unit/scripts/test_seed_and_generate.py`
+- `README.md`
+
+### P0-07 — Checkpoint con carga segura
+
+- `load_checkpoint` usa `weights_only=True` y allowlist de globals NumPy necesarios para el checkpoint actual.
+- `training.py` guarda `mu` y `sigma` como listas planas para que los checkpoints nuevos no necesiten NumPy al cargar.
+- El dashboard usa el mismo loader seguro.
+
+Validación runtime:
+
+```text
+checkpoint_keys: ['model_state_dict', 'mu', 'sigma', 'tau']
+tau: 0.7455
+unsafe_loads=0
+```
+
+Archivos:
+
+- `src/vortemis/application/use_cases/bayesian_pytorch_engine.py`
+- `src/vortemis/application/use_cases/training.py`
+- `src/vortemis/entrypoints/dashboard.py`
+- `tests/unit/application/test_pytorch_mitre_engine.py`
+
+## 10. Verificación final
+
+```text
+$ python -m uv run ruff check .
+All checks passed!
+
+$ python -m uv run pytest
+83 passed in 7.74s
+```
+
+## 11. Próximo paso
+
+1. Construir la imagen Docker cuando haya Docker disponible.
+2. Publicar tags/releases por cada P0.
+3. Actualizar el PR y marcarlo listo para revisión.

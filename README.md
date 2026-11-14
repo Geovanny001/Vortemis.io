@@ -44,10 +44,14 @@ This starts:
 
 ```bash
 uv sync
-uv run python scripts/seed_and_generate.py
+uv run python scripts/seed_and_generate.py --generate-sample
 uv run python -m vortemis.entrypoints.cli
 uv run streamlit run src/vortemis/entrypoints/dashboard.py
 ```
+
+The seed script only creates a header-only log by default. Pass
+`--generate-sample` to create the 5000-flow demo log, and `--force` to
+overwrite an existing log.
 
 ## Test Credentials
 

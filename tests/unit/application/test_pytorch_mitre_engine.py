@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy
 import pytest
 import torch
@@ -8,6 +10,7 @@ from vortemis.application.use_cases.bayesian_pytorch_engine import (
     TrafficAutoencoder,
     build_feature_vector,
     classify_mitre_tactic,
+    load_checkpoint,
 )
 
 
@@ -156,3 +159,29 @@ def test_engine_predict_returns_probabilities(tmp_path) -> None:
 
     assert probabilities.shape == (64,)
     assert numpy.all((probabilities >= 0.0) & (probabilities <= 1.0))
+
+
+def test_load_checkpoint_uses_weights_only(tmp_path, monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_load(path, **kwargs):
+        captured.update(kwargs)
+        return {
+            "model_state_dict": {},
+            "mu": [0.0] * FEATURE_DIM,
+            "sigma": [1.0] * FEATURE_DIM,
+            "tau": 1.0,
+        }
+
+    monkeypatch.setattr(torch, "load", fake_load)
+
+    checkpoint = load_checkpoint(tmp_path / "ae.pt")
+
+    assert captured["weights_only"] is True
+    assert checkpoint["tau"] == 1.0
+
+
+def test_load_committed_checkpoint() -> None:
+    checkpoint = load_checkpoint(Path("models/vortemis_ae.pt"))
+
+    assert set(checkpoint) == {"model_state_dict", "mu", "sigma", "tau"}

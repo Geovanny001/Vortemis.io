@@ -1,11 +1,20 @@
 import ipaddress
 from pathlib import Path
+from typing import Any
 
 import numpy
 import torch
 import torch.nn as nn
 
 FEATURE_DIM = 6
+
+_SAFE_NUMPY_GLOBALS = [
+    numpy._core.multiarray._reconstruct,
+    numpy.ndarray,
+    numpy.dtype,
+    numpy.dtypes.Float32DType,
+    numpy.dtypes.Float64DType,
+]
 
 _LATERAL_PORTS = {22, 135, 139, 445, 3389, 5985}
 _C2_PORTS = {53, 80, 443, 8080, 8443}
@@ -34,11 +43,16 @@ class TrafficAutoencoder(nn.Module):
         return self.decoder(self.encoder(x))
 
 
+def load_checkpoint(model_path: Path) -> dict[str, Any]:
+    torch.serialization.add_safe_globals(_SAFE_NUMPY_GLOBALS)
+    return torch.load(model_path, map_location="cpu", weights_only=True)
+
+
 class BayesianPyTorchEngine:
     def __init__(self, model_path: Path, epsilon: float = 0.70, k: float = 10.0) -> None:
         self._epsilon = epsilon
         self._k = k
-        checkpoint = torch.load(model_path, map_location="cpu", weights_only=False)
+        checkpoint = load_checkpoint(model_path)
         self._model = TrafficAutoencoder(FEATURE_DIM)
         self._model.load_state_dict(checkpoint["model_state_dict"])
         self._model.eval()
