@@ -1,15 +1,16 @@
 import asyncio
 import os
 import time
+from dataclasses import asdict
 from pathlib import Path
 
 import numpy
 import pandas
 import plotly.express as px
 import streamlit as st
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from vortemis.application.mitre import MITRE_TACTICS
+from vortemis.application.queries.telemetry import TelemetryReadService
 from vortemis.application.use_cases.bayesian_pytorch_engine import (
     build_feature_vector,
     load_checkpoint,
@@ -19,16 +20,8 @@ from vortemis.application.validation import (
     validate_ip_filter,
     validate_port_filter,
 )
-from vortemis.infrastructure.persistence.auth import authenticate_operator
+from vortemis.entrypoints.container import build_telemetry_service
 from vortemis.infrastructure.persistence.login_limiter import LoginLimiter
-from vortemis.infrastructure.persistence.maintenance import purge_telemetry
-from vortemis.infrastructure.persistence.models import (
-    DimConnState,
-    DimMitreTactic,
-    DimProtocol,
-    FactNetworkFlow,
-)
-from vortemis.infrastructure.persistence.postgres_repository import MITRE_TACTICS
 
 DATABASE_URL_ENV = "DATABASE_URL"
 DEFAULT_DATABASE_URL = "postgresql+asyncpg://vortemis:vortemis@localhost:5432/vortemis"
@@ -132,49 +125,24 @@ _CSS = """
 """
 
 
-async def load_flows(database_url: str) -> pandas.DataFrame:
-    engine = create_async_engine(database_url)
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
-    async with session_factory() as session:
-        rows = (
-            await session.execute(
-                select(
-                    FactNetworkFlow.ts,
-                    FactNetworkFlow.flow_id,
-                    FactNetworkFlow.src_ip,
-                    FactNetworkFlow.dst_ip,
-                    FactNetworkFlow.src_port,
-                    FactNetworkFlow.dst_port,
-                    DimProtocol.name,
-                    DimConnState.name,
-                    FactNetworkFlow.iat_ms,
-                    FactNetworkFlow.orig_bytes,
-                    FactNetworkFlow.resp_bytes,
-                    FactNetworkFlow.duration,
-                    FactNetworkFlow.anomaly_probability,
-                    FactNetworkFlow.is_anomaly,
-                    DimMitreTactic.mitre_id,
-                )
-                .join(DimProtocol, FactNetworkFlow.protocol_id == DimProtocol.id)
-                .outerjoin(DimConnState, FactNetworkFlow.conn_state_id == DimConnState.id)
-                .outerjoin(DimMitreTactic, FactNetworkFlow.tactic_id == DimMitreTactic.tactic_id)
-                .order_by(FactNetworkFlow.ts.desc())
-                .limit(20000)
-            )
-        ).all()
-    await engine.dispose()
-    frame = pandas.DataFrame(rows, columns=_FLOW_COLUMNS)
-    frame["ts"] = pandas.to_datetime(frame["ts"])
+async def load_flows(service: TelemetryReadService) -> pandas.DataFrame:
+    records = await service.load_flows(limit=20000)
+    frame = pandas.DataFrame(
+        [asdict(record) for record in records],
+        columns=_FLOW_COLUMNS,
+    )
+    if not frame.empty:
+        frame["ts"] = pandas.to_datetime(frame["ts"])
     return frame
 
 
-async def authenticate(database_url: str, username: str, password: str) -> str | None:
-    engine = create_async_engine(database_url)
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
-    async with session_factory() as session:
-        operator = await authenticate_operator(session, username, password)
-    await engine.dispose()
-    return operator.role if operator is not None else None
+async def authenticate(
+    service: TelemetryReadService,
+    username: str,
+    password: str,
+) -> str | None:
+    identity = await service.authenticate(username, password)
+    return identity.role if identity is not None else None
 
 
 def load_model_metadata(model_path: Path) -> dict | None:
@@ -273,7 +241,11 @@ def apply_filters(frame: pandas.DataFrame, filters: dict) -> pandas.DataFrame:
     return filtered
 
 
-def render_sidebar(role: str, database_url: str, log_file: Path) -> dict:
+def render_sidebar(
+    role: str,
+    service: TelemetryReadService,
+    log_file: Path,
+) -> dict:
     with st.sidebar:
         st.subheader(f"Operator: {st.session_state.username}")
         st.write(f"Role: **{role.upper()}**")
@@ -321,7 +293,7 @@ def render_sidebar(role: str, database_url: str, log_file: Path) -> dict:
                 ):
                     with st.spinner("Purging telemetry..."):
                         try:
-                            asyncio.run(purge_telemetry(database_url, log_file))
+                            asyncio.run(service.purge(log_file))
                         except Exception as exc:
                             st.error(f"Purge failed: {exc}")
                         else:
@@ -541,7 +513,7 @@ def render_empty_state(log_file: Path) -> None:
     st.info("Waiting for telemetry...")
 
 
-def render_login(database_url: str) -> None:
+def render_login(service: TelemetryReadService) -> None:
     st.markdown(
         """
         <div class="login-card">
@@ -570,7 +542,9 @@ def render_login(database_url: str) -> None:
                     )
                 else:
                     with st.spinner("Authenticating..."):
-                        role = asyncio.run(authenticate(database_url, username, password))
+                        role = asyncio.run(
+                            authenticate(service, username, password)
+                        )
                     if role is None:
                         _LOGIN_LIMITER.record_failure(username)
                         remaining = _LOGIN_LIMITER.remaining_seconds(username)
@@ -595,16 +569,17 @@ def main() -> None:
     database_url = os.getenv(DATABASE_URL_ENV, DEFAULT_DATABASE_URL)
     model_path = Path(os.getenv(MODEL_PATH_ENV, DEFAULT_MODEL_PATH))
     log_file = Path(os.getenv(LOG_FILE_ENV, DEFAULT_LOG_FILE))
+    service = build_telemetry_service(database_url)
 
     if not st.session_state.get("operator"):
-        render_login(database_url)
+        render_login(service)
         st.stop()
 
     username = st.session_state.operator
     role = st.session_state.role
 
     try:
-        frame = asyncio.run(load_flows(database_url))
+        frame = asyncio.run(load_flows(service))
     except Exception as exc:
         st.error(f"Unable to reach the database: {exc}")
         st.stop()
@@ -617,7 +592,7 @@ def main() -> None:
         log_file,
     )
 
-    filters = render_sidebar(role, database_url, log_file)
+    filters = render_sidebar(role, service, log_file)
     if frame.empty:
         render_empty_state(log_file)
         st.stop()

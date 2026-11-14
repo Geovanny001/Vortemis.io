@@ -2,19 +2,14 @@ import asyncio
 from datetime import datetime
 
 from rich.text import Text
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.widgets import DataTable, Footer, Header, Static
 
+from vortemis.application.queries.telemetry import TelemetryReadService
 from vortemis.config import Settings
-from vortemis.infrastructure.persistence.models import (
-    DimMitreTactic,
-    DimProtocol,
-    FactNetworkFlow,
-)
+from vortemis.entrypoints.container import build_telemetry_service
 
 
 class KpiBox(Static):
@@ -53,6 +48,9 @@ class VortemisTUI(App):
     def __init__(self) -> None:
         super().__init__()
         self._settings = Settings.from_env()
+        self._service: TelemetryReadService = build_telemetry_service(
+            self._settings.database_url
+        )
         self._epsilon = self._settings.epsilon
         self._only_anomalies = False
         self._flows: list[dict] = []
@@ -73,8 +71,6 @@ class VortemisTUI(App):
         yield Footer()
 
     async def on_mount(self) -> None:
-        self._engine = create_async_engine(self._settings.database_url)
-        self._session_factory = async_sessionmaker(self._engine, expire_on_commit=False)
         table = self.query_one("#flows_table", DataTable)
         table.add_columns(
             "Timestamp", "Src IP", "Dst IP", "Dst Port", "Proto", "State",
@@ -84,59 +80,27 @@ class VortemisTUI(App):
         await self.refresh_data()
 
     async def refresh_data(self) -> None:
-        async with self._session_factory() as session:
-            total = await session.scalar(select(func.count()).select_from(FactNetworkFlow)) or 0
-            anomalies = (
-                await session.scalar(
-                    select(func.count()).select_from(FactNetworkFlow).where(
-                        FactNetworkFlow.anomaly_probability >= self._epsilon
-                    )
-                )
-                or 0
-            )
-            rows = (
-                await session.execute(
-                    select(
-                        FactNetworkFlow.ts,
-                        FactNetworkFlow.src_ip,
-                        FactNetworkFlow.dst_ip,
-                        FactNetworkFlow.dst_port,
-                        DimProtocol.name,
-                        FactNetworkFlow.iat_ms,
-                        FactNetworkFlow.orig_bytes,
-                        FactNetworkFlow.anomaly_probability,
-                        DimMitreTactic.mitre_id,
-                    )
-                    .join(DimProtocol, FactNetworkFlow.protocol_id == DimProtocol.id)
-                    .outerjoin(
-                        DimMitreTactic,
-                        FactNetworkFlow.tactic_id == DimMitreTactic.tactic_id,
-                    )
-                    .order_by(FactNetworkFlow.ts.desc())
-                    .limit(50)
-                )
-            ).all()
+        total = await self._service.count_flows()
+        anomalies = await self._service.count_anomalies(self._epsilon)
+        records = await self._service.load_flows(limit=50)
 
         self._flows = [
             {
-                "ts": r[0].strftime("%H:%M:%S"),
-                "src": r[1],
-                "dst": r[2],
-                "port": r[3],
-                "proto": r[4],
-                "iat": r[5],
-                "bytes": r[6],
-                "prob": r[7],
-                "mitre": r[8] or "-",
+                "ts": record.ts.strftime("%H:%M:%S"),
+                "src": record.src_ip,
+                "dst": record.dst_ip,
+                "port": record.dst_port,
+                "proto": record.protocol,
+                "state": record.conn_state or "-",
+                "iat": record.iat_ms,
+                "bytes": record.orig_bytes,
+                "prob": record.anomaly_probability,
+                "mitre": record.mitre_tactic or "-",
             }
-            for r in rows
+            for record in records
         ]
 
-        mitre_counts: dict[str, int] = {}
-        for flow in self._flows:
-            if flow["mitre"] != "-":
-                mitre_counts[flow["mitre"]] = mitre_counts.get(flow["mitre"], 0) + 1
-
+        mitre_counts = await self._service.count_by_tactic()
         exfil = mitre_counts.get("TA0010", 0)
         recon = mitre_counts.get("TA0043", 0) + mitre_counts.get("TA0008", 0)
         c2 = mitre_counts.get("TA0011", 0) + mitre_counts.get("TA0040", 0)
@@ -162,7 +126,7 @@ class VortemisTUI(App):
         for flow in flows:
             table.add_row(
                 flow["ts"], flow["src"], flow["dst"], str(flow["port"]),
-                flow["proto"], "-", "—" if flow["iat"] is None else f"{flow['iat']:.1f}",
+                flow["proto"], flow["state"], "—" if flow["iat"] is None else f"{flow['iat']:.1f}",
                 str(flow["bytes"]), f"{flow['prob']:.3f}", flow["mitre"],
             )
 
@@ -211,8 +175,8 @@ class VortemisTUI(App):
         inspector.update(
             Text.from_markup(
                 f"[bold]Inspector[/]  {flow['src']} → {flow['dst']}:{flow['port']}  "
-                f"proto={flow['proto']}  iat={flow['iat']}ms  bytes={flow['bytes']}  "
-                f"P(anomaly)={flow['prob']:.3f}  mitre={flow['mitre']}"
+                f"proto={flow['proto']}  state={flow['state']}  iat={flow['iat']}ms  "
+                f"bytes={flow['bytes']}  P(anomaly)={flow['prob']:.3f}  mitre={flow['mitre']}"
             )
         )
 
