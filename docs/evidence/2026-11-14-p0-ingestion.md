@@ -296,8 +296,9 @@ $ python -m uv run pytest
 - `Dockerfile`: instala torch antes de copiar el código, copia `models/` y define `MODEL_PATH=/app/models/vortemis_ae.pt`.
 - `docker-compose.yml`: `CONTINUOUS_MODE: "true"`, `MODEL_PATH` y `restart: unless-stopped` para el ingestor.
 - `seed_and_ingest` usa `--generate-sample`, que no sobrescribe un log existente.
-- Validación: `tests/test_deployment.py`.
-- Limitación: Docker no está instalado en esta máquina, así que el `docker build` queda pendiente. La configuración se validó de forma estática.
+- Validación estática: `tests/test_deployment.py`.
+- Validación real en GitHub Actions: build de la imagen, `model_present` e `import_ok`.
+- Run: https://github.com/Geovanny001/Vortemis.io/actions/runs/43639632568
 
 ### P0-06 — Seed no destructivo
 
