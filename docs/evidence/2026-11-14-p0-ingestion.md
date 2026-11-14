@@ -361,3 +361,27 @@ $ python -m uv run pytest
 1. Construir la imagen Docker cuando haya Docker disponible.
 2. Publicar tags/releases por cada P0.
 3. Actualizar el PR y marcarlo listo para revisión.
+
+## 12. Validación de ingesta limpia (2026-11-14)
+
+Prueba aislada en `vortemis_clean_test`:
+
+```text
+initial_count=10
+final_count=11
+duplicate_groups=0
+clean_test=ok
+```
+
+La prueba arrancó el CLI real en modo continuo con 10 filas, añadió una línea y verificó que el total pasó a 11 sin duplicados.
+
+Limpieza de la base real:
+
+```text
+flows=5000
+anomalies=4852
+duplicate_groups=0
+dashboard=200 ok
+```
+
+El número de anomalías cambió de 4509 a 4852 porque el IAT ahora es correcto y persistente entre lotes. Esto confirma que la calibración del modelo sigue siendo deuda P1: el checkpoint actual marca aproximadamente el 97% del dataset de demo como anomalía.
