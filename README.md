@@ -103,6 +103,19 @@ uv run ruff check .
 uv run pytest
 ```
 
+## Calibration with CICIDS2017
+
+The public CICIDS2017 dataset can be used to calibrate and evaluate the engine:
+
+```bash
+uv run python scripts/prepare_cicids2017.py --input-dir <raw-parquet-dir> --output <prepared.parquet>
+uv run python scripts/train_cicids2017.py --dataset <prepared.parquet> --output models/vortemis_ae_cicids.pt
+uv run python scripts/evaluate_cicids2017.py --dataset <prepared.parquet> --model models/vortemis_ae_cicids.pt --max-benign 200000 --select-threshold
+```
+
+The dataset and the experimental checkpoint are not versioned. See
+`docs/evidence/2026-11-14-p1-cicids2017-baseline.md` for the baseline results.
+
 ## License & Copyright
 
 Proprietary software developed by Carles Rivera and the Vortemis.io Team. See

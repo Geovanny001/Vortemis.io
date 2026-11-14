@@ -12,3 +12,5 @@ htmlcov/
 *.log
 !data/samples/*.log
 .env
+data/datasets/
+models/vortemis_ae_cicids.pt
