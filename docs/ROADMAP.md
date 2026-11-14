@@ -56,3 +56,9 @@ Fuente de verdad: `Context_vortemis_puro.md` (especificación original). Objetiv
 4. Arquitectura hexagonal: `domain <- application <- infrastructure <- entrypoints`; `domain/` sin libs externas.
 5. Ejecutar `ruff check .` y `pytest` en verde antes de avanzar de fase.
 6. PyTorch: entrenar en GPU (otra PC), inferir en CPU (Docker). Yo genero el código; el `.pt` se entrena fuera.
+
+## 2026-11-14 — Estabilización P0 de ingesta
+- Plan: `docs/IMPROVEMENT_PLAN.md`
+- Evidencia base: `docs/evidence/2026-11-14-p0-ingestion.md`
+- Rama: `release/p0-ingestion`
+- Próximo paso: tests de regresión de P0-01 (doble ingesta) y P0-02 (IAT en continuo).
