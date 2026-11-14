@@ -22,6 +22,7 @@ async def purge_telemetry(database_url: str, log_file: Path) -> None:
         )
         async with engine.begin() as connection:
             await connection.execute(text(statement))
+            await connection.execute(text("DELETE FROM ingestion_state"))
         await asyncio.to_thread(_rewrite_log, log_file)
     finally:
         await engine.dispose()

@@ -70,3 +70,16 @@ class FactNetworkFlow(Base):
     is_anomaly: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False, index=True
     )
+
+
+class IngestionState(Base):
+    __tablename__ = "ingestion_state"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_path: Mapped[str] = mapped_column(String(512), unique=True, nullable=False)
+    device: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    inode: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    offset: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )

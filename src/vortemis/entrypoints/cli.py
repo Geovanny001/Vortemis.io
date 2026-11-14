@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -8,6 +9,11 @@ from vortemis.application.use_cases.training import train_and_export
 from vortemis.banner import print_banner
 from vortemis.config import Settings
 from vortemis.infrastructure.persistence.auth import seed_default_operators
+from vortemis.infrastructure.persistence.ingestion_state import (
+    CheckpointRecorder,
+    SqlIngestionState,
+    resolve_resume_offset,
+)
 from vortemis.infrastructure.persistence.models import Base
 from vortemis.infrastructure.persistence.postgres_repository import (
     PostgresFlowRepository,
@@ -32,49 +38,59 @@ async def main() -> None:
     settings = Settings.from_env()
     _ensure_model(settings)
     engine = create_async_engine(settings.database_url)
-    async with engine.begin() as connection:
-        await connection.run_sync(Base.metadata.create_all)
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
-    async with session_factory() as session:
-        await seed_default_operators(session)
-        await session.commit()
-    repository = PostgresFlowRepository(session_factory, epsilon=settings.epsilon)
-    inference_engine = _load_engine(settings)
-    source = ZeekTelemetrySource(settings.log_file)
-    use_case = FlowNormalizerUseCase(
-        source=source,
-        repository=repository,
-        engine=inference_engine,
-    )
-    inserted = await use_case.execute()
-    print(f"flows persisted: {inserted}")
-    if settings.continuous_mode:
-        await _run_continuously(
-            settings,
-            repository,
-            inference_engine,
-            source.position,
+    try:
+        async with engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+        session_factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with session_factory() as session:
+            await seed_default_operators(session)
+            await session.commit()
+        repository = PostgresFlowRepository(
+            session_factory, epsilon=settings.epsilon
         )
-    await engine.dispose()
+        inference_engine = _load_engine(settings)
+        state = SqlIngestionState(session_factory)
+        start_offset = await resolve_resume_offset(state, settings.log_file)
+        recorder = CheckpointRecorder(
+            state, settings.log_file, initial_offset=start_offset
+        )
+        source = ZeekTelemetrySource(settings.log_file, start_offset=start_offset)
+        use_case = FlowNormalizerUseCase(
+            source=source,
+            repository=repository,
+            engine=inference_engine,
+        )
+        try:
+            inserted = await use_case.execute(on_progress=recorder)
+            print(f"flows persisted: {inserted}")
+            if settings.continuous_mode:
+                await _follow(
+                    settings.log_file,
+                    repository,
+                    inference_engine,
+                    recorder,
+                    source.position,
+                )
+        finally:
+            await recorder.flush()
+    finally:
+        await engine.dispose()
 
 
-async def _run_continuously(
-    settings: Settings,
+async def _follow(
+    log_file: Path,
     repository: PostgresFlowRepository,
     inference_engine: BayesianPyTorchEngine | None,
+    recorder: CheckpointRecorder,
     start_offset: int,
 ) -> None:
-    source = ZeekTelemetrySource(
-        settings.log_file,
-        follow=True,
-        start_offset=start_offset,
-    )
+    source = ZeekTelemetrySource(log_file, follow=True, start_offset=start_offset)
     use_case = FlowNormalizerUseCase(
         source=source,
         repository=repository,
         engine=inference_engine,
     )
-    await use_case.execute(batch_size=1)
+    await use_case.execute(batch_size=1, on_progress=recorder)
 
 
 if __name__ == "__main__":
