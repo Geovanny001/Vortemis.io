@@ -61,7 +61,15 @@ Fuente de verdad: `Context_vortemis_puro.md` (especificación original). Objetiv
 - Plan: `docs/IMPROVEMENT_PLAN.md`
 - Evidencia base: `docs/evidence/2026-11-14-p0-ingestion.md`
 - Rama: `release/p0-ingestion`
-- P0-01 a P0-07 completados con tests y evidencia.
-- P0-08 cubierto con 83 tests verdes.
+- P0-01 a P0-08 completados con tests y evidencia.
 - Docker build verificado en GitHub Actions.
-- Pendiente: actualización final del PR y revisión/merge.
+- PRs #10, #11 y #12 fusionados.
+
+## 2026-11-14 — P1 calibración CICIDS2017
+- Rama: `feat/p1-cicids2017-calibration`
+- Dataset: CICIDS2017 (`MachineLearningCSV` convertido a Parquet).
+- Evidencia: `docs/evidence/2026-11-14-p1-cicids2017-baseline.md`
+- Resultado: AUC 0.694 con el checkpoint original; 0.699 con benignos CICIDS; 0.868 con autoencoder 6→32→8→32→6; 0.998 con un modelo supervisado de diagnóstico.
+- Estado: baseline completado; las mejoras de modelo quedan como trabajo futuro.
+- Foco actual: UI y operaciones (dashboard, seguridad, retención y despliegue).
+- Decisión pendiente: autoencoder más grande + features de comportamiento, o modelo híbrido.
