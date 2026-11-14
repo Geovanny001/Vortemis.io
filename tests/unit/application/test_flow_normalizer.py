@@ -125,3 +125,22 @@ async def test_flow_normalizer_attaches_probability_with_engine(tmp_path) -> Non
     assert len(repository.saved_flows) == 1
     flow = repository.saved_flows[0]
     assert 0.0 <= flow.anomaly_probability <= 1.0
+
+
+async def test_iat_persists_across_single_record_batches() -> None:
+    source = FakeTelemetrySource(
+        [
+            _record("10.0", "10.0.0.1", 1),
+            _record("11.0", "10.0.0.1", 2),
+            _record("12.0", "10.0.0.1", 3),
+        ]
+    )
+    repository = InMemoryFlowRepository()
+    use_case = FlowNormalizerUseCase(source=source, repository=repository)
+
+    await use_case.execute(batch_size=1)
+
+    saved = sorted(
+        repository.saved_flows, key=lambda flow: flow.ts.value.timestamp()
+    )
+    assert [flow.iat_ms for flow in saved] == [None, 1000.0, 1000.0]

@@ -40,14 +40,20 @@ async def main() -> None:
         await session.commit()
     repository = PostgresFlowRepository(session_factory, epsilon=settings.epsilon)
     inference_engine = _load_engine(settings)
+    source = ZeekTelemetrySource(settings.log_file)
     use_case = FlowNormalizerUseCase(
-        source=ZeekTelemetrySource(settings.log_file),
+        source=source,
         repository=repository,
         engine=inference_engine,
     )
     await use_case.execute()
     if settings.continuous_mode:
-        await _run_continuously(settings, repository, inference_engine)
+        await _run_continuously(
+            settings,
+            repository,
+            inference_engine,
+            source.position,
+        )
     await engine.dispose()
 
 
@@ -55,8 +61,13 @@ async def _run_continuously(
     settings: Settings,
     repository: PostgresFlowRepository,
     inference_engine: BayesianPyTorchEngine | None,
+    start_offset: int,
 ) -> None:
-    source = ZeekTelemetrySource(settings.log_file, follow=True)
+    source = ZeekTelemetrySource(
+        settings.log_file,
+        follow=True,
+        start_offset=start_offset,
+    )
     use_case = FlowNormalizerUseCase(
         source=source,
         repository=repository,

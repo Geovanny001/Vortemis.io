@@ -32,3 +32,11 @@ Registro de decisiones tomadas para que cualquier agente/sesión nueva no las de
 - **PyTorch**: `TrafficAutoencoder` 6→16→3→16→6 (GELU+BatchNorm). Entrenar en GPU (RTX 5050, otra PC) con `scripts/train_gpu.py`; inferir en CPU (Docker) con el `.pt` exportado. Yo genero el código, el entrenamiento se hace fuera.
 - **Umbral por defecto** `epsilon = 0.70`.
 - **5 tácticas MITRE de red**: TA0010 (exfil), TA0008 (lateral), TA0040 (impact/DoS), TA0043 (recon), TA0011 (C2).
+
+## Estabilización P0 de ingesta (2026-11-14)
+- **Rama `release/p0-ingestion`** creada desde `develop` (`1e393c9`), no desde el tag `release/fase7` (`2616dec`), porque el tag es anterior a PyTorch, autenticación, TUI y sensor en vivo.
+- **Evidencia**: cada cambio deja test, salida de `ruff`/`pytest`, prueba de runtime y un documento en `docs/evidence/`.
+- **Identidad de commits de esta rama**: `Geo052 <carlesriveramarroquin@gmail.com>`.
+- **Checkpoint protegido**: `models/vortemis_ae.pt` no se sobrescribe ni se borra; los experimentos usan otra ruta y el reemplazo requiere aprobación.
+- **Plan vigente**: `docs/IMPROVEMENT_PLAN.md`.
+- **Puerta de calidad**: no se avanza sin `ruff check .` y `pytest` en verde.

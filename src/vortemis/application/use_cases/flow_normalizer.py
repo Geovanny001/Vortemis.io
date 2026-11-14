@@ -1,7 +1,6 @@
 from dataclasses import replace
 
 import numpy
-import pandas
 
 from vortemis.application.ports.driven.flow_repository import FlowRepositoryPort
 from vortemis.application.ports.driving.raw_record import RawRecord
@@ -26,6 +25,7 @@ class FlowNormalizerUseCase:
         self._repository = repository
         self._mapper = ZeekFlowMapper()
         self._engine = engine
+        self._last_timestamp_by_source: dict[str, float] = {}
 
     async def execute(self, batch_size: int = 1000) -> None:
         batch: list[RawRecord] = []
@@ -50,25 +50,27 @@ class FlowNormalizerUseCase:
         await self._repository.save_batch(flows)
 
     def _attach_inter_arrival(self, flows: list[NetworkFlow]) -> list[NetworkFlow]:
-        frame = pandas.DataFrame(
-            {
-                "epoch": [flow.ts.value.timestamp() for flow in flows],
-                "src": [flow.src_ip.value for flow in flows],
-            }
-        ).sort_values(["src", "epoch"])
-        frame["iat_ms"] = frame.groupby("src")["epoch"].diff() * 1000.0
-        iat_by_position = frame["iat_ms"].reindex(range(len(flows))).to_numpy()
-        return [
-            replace(
-                flow,
-                iat_ms=(
-                    None
-                    if pandas.isna(iat_by_position[index])
-                    else float(iat_by_position[index])
-                ),
+        ordered_indices = sorted(
+            range(len(flows)),
+            key=lambda index: (
+                flows[index].src_ip.value,
+                flows[index].ts.value.timestamp(),
+            ),
+        )
+        annotated: list[NetworkFlow | None] = [None] * len(flows)
+        for index in ordered_indices:
+            flow = flows[index]
+            source = flow.src_ip.value
+            epoch = flow.ts.value.timestamp()
+            previous = self._last_timestamp_by_source.get(source)
+            iat_ms = None if previous is None else (epoch - previous) * 1000.0
+            if iat_ms is not None and iat_ms < 0:
+                iat_ms = None
+            self._last_timestamp_by_source[source] = (
+                epoch if previous is None else max(previous, epoch)
             )
-            for index, flow in enumerate(flows)
-        ]
+            annotated[index] = replace(flow, iat_ms=iat_ms)
+        return [flow for flow in annotated if flow is not None]
 
     def _attach_anomalies(self, flows: list[NetworkFlow]) -> list[NetworkFlow]:
         if self._engine is None:
