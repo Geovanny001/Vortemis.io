@@ -84,7 +84,11 @@ Registro de decisiones tomadas para que cualquier agente/sesión nueva no las de
 - **Datos previos**: los `flow_id` aleatorios existentes no se reescriben; una reingesta inserta una copia hasta purgar.
 
 ## Convenciones de trabajo (2026-11-14)
-- **Pull requests en inglés**: título y cuerpo de todos los PR, incluidos los de documentación.
-- **Un release por cambio**: cada rama publica su tag y su release antes de abrir el PR.
-- **Validación previa**: `ruff check .` y `pytest` en verde antes del commit.
+- **Estándar de PR**: `docs/ops/PULL_REQUESTS.md` y plantilla `.github/pull_request_template.md`.
+- **Un cambio lógico por PR**: código, tests, migración, documentación y evidencia en el mismo PR; no se abren PR de documentación separados.
+- **Pull requests en inglés**: título `type: summary`, cuerpo y comentarios, incluidos los de documentación.
+- **Releases en inglés**: tag kebab-case creado antes del PR y apuntando al head de la rama.
+- **Validación previa**: `ruff check .` y `pytest` en verde, con la salida real en el cuerpo del PR.
 - **Commits en inglés**: mensajes y nombres de archivo en inglés; la documentación interna puede seguir en español.
+- **Sin emojis** en README, PR, releases ni documentación.
+- **Merge**: merge commit, CI en verde y rama eliminada.
