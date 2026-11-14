@@ -67,6 +67,6 @@ ignore = ["S101"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src", "tests"]
+pythonpath = ["src", "tests", "."]
 asyncio_mode = "auto"
 addopts = "-q"

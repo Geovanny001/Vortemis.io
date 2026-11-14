@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import os
 import random
@@ -103,7 +104,16 @@ def _build_records(count: int) -> list[str]:
     return rows
 
 
-def generate_sample_file() -> None:
+def ensure_header_log() -> None:
+    if SAMPLE_PATH.exists():
+        return
+    SAMPLE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    SAMPLE_PATH.write_text("\n".join(_render_header()) + "\n")
+
+
+def generate_sample_file(force: bool = False) -> None:
+    if SAMPLE_PATH.exists() and not force:
+        return
     content = "\n".join(_render_header() + _build_records(RECORD_COUNT)) + "\n"
     SAMPLE_PATH.parent.mkdir(parents=True, exist_ok=True)
     SAMPLE_PATH.write_text(content)
@@ -134,13 +144,20 @@ async def _seed_mitre_tactics(session: AsyncSession) -> None:
         session.add_all(missing)
 
 
-async def _run() -> None:
-    generate_sample_file()
+async def _run(generate_sample: bool = False, force: bool = False) -> None:
+    if generate_sample:
+        generate_sample_file(force=force)
+    else:
+        ensure_header_log()
     await seed_database()
 
 
 def main() -> None:
-    asyncio.run(_run())
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--generate-sample", action="store_true")
+    parser.add_argument("--force", action="store_true")
+    args = parser.parse_args()
+    asyncio.run(_run(generate_sample=args.generate_sample, force=args.force))
 
 
 if __name__ == "__main__":
