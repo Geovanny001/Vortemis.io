@@ -174,8 +174,8 @@ docs: record p0 ingestion evidence
 
 - [x] P0-01: una sola lectura del log en modo continuo.
 - [x] P0-02: IAT persistente entre lotes.
-- [ ] P0-03: truncado y rotación del log.
-- [ ] P0-04: timestamps y puertos UDP del sensor.
+- [x] P0-03: truncado y rotación del log.
+- [x] P0-04: timestamps y puertos UDP del sensor.
 - [ ] P0-05: Docker con modelo y modo continuo.
 - [ ] P0-06: seed no destructivo.
 - [ ] P0-07: carga segura del checkpoint.

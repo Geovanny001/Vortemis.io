@@ -61,5 +61,5 @@ Fuente de verdad: `Context_vortemis_puro.md` (especificación original). Objetiv
 - Plan: `docs/IMPROVEMENT_PLAN.md`
 - Evidencia base: `docs/evidence/2026-11-14-p0-ingestion.md`
 - Rama: `release/p0-ingestion`
-- P0-01 (doble ingesta) y P0-02 (IAT en continuo) completados con tests y evidencia.
-- Próximo paso: P0-03 (truncado) y P0-04 (timestamps y UDP del sensor).
+- P0-01 (doble ingesta), P0-02 (IAT), P0-03 (truncado/rotación) y P0-04 (sensor UDP/timestamps) completados con tests y evidencia.
+- Próximo paso: P0-05 (Docker con modelo) y P0-06 (seed no destructivo).

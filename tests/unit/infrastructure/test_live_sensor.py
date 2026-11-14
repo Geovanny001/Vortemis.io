@@ -62,6 +62,70 @@ def test_parse_tshark_line_rejects_malformed() -> None:
     assert parse_tshark_line(bad_ts) is None
 
 
+def test_parse_tshark_line_uses_udp_ports() -> None:
+    line = "\t".join(
+        [
+            "1.0",
+            "10.0.0.1",
+            "",
+            "5353",
+            "8.8.8.8",
+            "",
+            "53",
+            "17",
+            "100",
+            "0",
+            "0",
+            "0",
+            "0",
+        ]
+    )
+    packet = parse_tshark_line(line)
+
+    assert packet is not None
+    assert packet.src_port == 5353
+    assert packet.dst_port == 53
+    flows = aggregate_flows([packet])
+    fields = flows[0].split("\t")
+    assert fields[3] == "5353"
+    assert fields[5] == "53"
+    assert fields[6] == "udp"
+
+
+def test_parse_tshark_line_rejects_icmp_without_ports() -> None:
+    line = "\t".join(
+        [
+            "1.0",
+            "10.0.0.1",
+            "",
+            "",
+            "8.8.8.8",
+            "",
+            "",
+            "1",
+            "100",
+            "0",
+            "0",
+            "0",
+            "0",
+        ]
+    )
+    assert parse_tshark_line(line) is None
+
+
+def test_aggregate_flows_uses_each_flow_first_timestamp() -> None:
+    packets = [
+        parse_tshark_line(_tshark_line(1.0, "10.0.0.1", 1111, "10.0.0.2", 80, 6, 100)),
+        parse_tshark_line(_tshark_line(5.0, "10.0.0.3", 3333, "10.0.0.4", 443, 6, 100)),
+    ]
+    assert all(packet is not None for packet in packets)
+
+    flows = aggregate_flows(packets)
+
+    timestamps = sorted(float(flow.split("\t")[0]) for flow in [flows[0], flows[1]])
+    assert timestamps == [1.0, 5.0]
+
+
 class _FakeStdout:
     def __init__(self, lines: list[bytes]) -> None:
         self._lines = lines

@@ -78,14 +78,20 @@ def parse_tshark_line(line: str) -> Packet | None:
     try:
         ts = float(parts[0])
         src_ip = parts[1]
-        src_port = int(parts[2] or 0)
+        tcp_src_port = int(parts[2] or 0)
+        udp_src_port = int(parts[3] or 0)
         dst_ip = parts[4]
-        dst_port = int(parts[5] or 0)
+        tcp_dst_port = int(parts[5] or 0)
+        udp_dst_port = int(parts[6] or 0)
         proto = int(parts[7] or 0)
         length = int(parts[8] or 0)
     except ValueError:
         return None
     if not src_ip or not dst_ip:
+        return None
+    src_port = tcp_src_port or udp_src_port
+    dst_port = tcp_dst_port or udp_dst_port
+    if proto == 1 or src_port == 0 or dst_port == 0:
         return None
     flags = parts[9:13]
     return Packet(
@@ -123,12 +129,15 @@ def _deduce_state(accumulator: _FlowAccumulator) -> str:
     return "OTH"
 
 
-def _render_flow(ts: float, key: tuple, accumulator: _FlowAccumulator) -> str:
+def _render_flow(
+    key: tuple[str, int, str, int, int],
+    accumulator: _FlowAccumulator,
+) -> str:
     src_ip, src_port, dst_ip, dst_port, proto = key
     duration = accumulator.last_ts - accumulator.first_ts
     return "\t".join(
         [
-            f"{ts:.6f}",
+            f"{accumulator.first_ts:.6f}",
             f"C{abs(hash(key)) % 10**9:09d}",
             src_ip,
             str(src_port or 0),
@@ -145,7 +154,7 @@ def _render_flow(ts: float, key: tuple, accumulator: _FlowAccumulator) -> str:
 
 
 def aggregate_flows(packets: list[Packet]) -> list[str]:
-    groups: dict[tuple, _FlowAccumulator] = {}
+    groups: dict[tuple[str, int, str, int, int], _FlowAccumulator] = {}
     for packet in packets:
         key = (
             packet.src_ip,
@@ -157,7 +166,7 @@ def aggregate_flows(packets: list[Packet]) -> list[str]:
         if key not in groups:
             groups[key] = _FlowAccumulator(first_ts=packet.ts)
         groups[key].add(packet)
-    return [_render_flow(packet.ts, key, acc) for key, acc in groups.items()]
+    return [_render_flow(key, acc) for key, acc in groups.items()]
 
 
 class LiveTsharkSensor:
@@ -165,7 +174,6 @@ class LiveTsharkSensor:
         self._interface = interface
         self._log_file = log_file
         self._window = window
-        self._accumulator: dict[tuple, _FlowAccumulator] = {}
 
     @staticmethod
     def tshark_available() -> bool:

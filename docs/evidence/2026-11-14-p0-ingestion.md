@@ -246,10 +246,52 @@ $ python -m uv run pytest
 69 passed in 7.34s
 ```
 
-## 7. Próximo paso
+## 7. Fixes aplicados (P0-03 y P0-04)
 
-1. P0-03: detectar truncado y rotación en `telemetry_source.py`.
-2. P0-04: corregir timestamps y puertos UDP en `live_sensor.py`.
-3. P0-05/P0-06: Docker con modelo y seed no destructivo.
-4. P0-07: carga segura del checkpoint.
-5. Registrar cada fix en este documento antes de hacer commit.
+### P0-03 — Truncado y rotación
+
+Validación runtime:
+
+```text
+truncate: C1 C2 C3
+```
+
+El follower detecta `st_size < position` y hace `seek(0)`. Si cambia la identidad `(st_dev, st_ino)`, cierra y reabre el archivo. En Windows no se puede reemplazar un archivo mientras está abierto, así que la rotación se valida con un test que simula el cambio de inodo.
+
+Archivos:
+
+- `src/vortemis/infrastructure/zeek/telemetry_source.py`
+- `tests/unit/infrastructure/test_follow_source.py`
+
+### P0-04 — Timestamps y puertos UDP del sensor
+
+Validación runtime:
+
+```text
+udp_ports: 5353 53
+flow_timestamps: [1.0, 5.0]
+```
+
+El parser usa los campos TCP o UDP según el protocolo, descarta ICMP sin puertos y cada flujo renderizado usa su propio `first_ts`.
+
+Archivos:
+
+- `src/vortemis/infrastructure/zeek/live_sensor.py`
+- `tests/unit/infrastructure/test_live_sensor.py`
+
+## 8. Verificación final
+
+```text
+$ python -m uv run ruff check .
+All checks passed!
+
+$ python -m uv run pytest
+74 passed in 7.35s
+```
+
+## 9. Próximo paso
+
+1. P0-05: Dockerfile con modelo y compose en modo continuo.
+2. P0-06: seed no destructivo.
+3. P0-07: carga segura del checkpoint.
+4. Publicar tags/releases por P0 y actualizar el PR al final.
