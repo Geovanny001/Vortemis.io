@@ -70,4 +70,6 @@ Fuente de verdad: `Context_vortemis_puro.md` (especificación original). Objetiv
 - Dataset: CICIDS2017 (`MachineLearningCSV` convertido a Parquet).
 - Evidencia: `docs/evidence/2026-11-14-p1-cicids2017-baseline.md`
 - Resultado: AUC 0.694 con el checkpoint original; 0.699 con benignos CICIDS; 0.868 con autoencoder 6→32→8→32→6; 0.998 con un modelo supervisado de diagnóstico.
+- Estado: baseline completado; las mejoras de modelo quedan como trabajo futuro.
+- Foco actual: UI y operaciones (dashboard, seguridad, retención y despliegue).
 - Decisión pendiente: autoencoder más grande + features de comportamiento, o modelo híbrido.

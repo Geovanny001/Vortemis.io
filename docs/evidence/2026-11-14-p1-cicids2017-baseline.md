@@ -139,6 +139,8 @@ Comparativa de alternativas no supervisadas:
 
 Recomendación: probar primero 1 + 2, con objetivo AUC ≥0.95 y recall ≥0.80 con FPR ≤5%. Si no se alcanza, pasar a 3.
 
+Estado: baseline completado. Las mejoras de modelo quedan como trabajo futuro; el foco actual es UI/ops.
+
 ## 7. Reproducción
 
 ```powershell

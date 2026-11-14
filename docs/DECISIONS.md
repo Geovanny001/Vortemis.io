@@ -48,4 +48,5 @@ Registro de decisiones tomadas para que cualquier agente/sesión nueva no las de
 - **Checkpoint experimental**: `models/vortemis_ae_cicids.pt`, ignorado por Git y regenerable.
 - **Umbral**: el selector `best_threshold` prioriza FPR ≤5% aunque el F1 baje; se corrigió el fallback que devolvía un umbral no compliant.
 - **Resultado**: las 6 features tienen señal (AUC supervisado 0.998), pero el autoencoder actual solo llega a AUC 0.694; el autoencoder 6→32→8→32→6 sube a 0.868 y 56% de recall con FPR 5%.
+- **Estado**: baseline completado. Las mejoras de modelo quedan como trabajo futuro; el foco actual es UI/ops.
 - **Decisión pendiente**: autoencoder más grande + features de comportamiento, o modelo híbrido supervisado.
