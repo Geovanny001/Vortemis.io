@@ -65,6 +65,32 @@ async def test_seed_default_operators_is_idempotent(session_factory) -> None:
     assert count == 2
 
 
+async def test_seed_default_operators_uses_environment(
+    session_factory, monkeypatch
+) -> None:
+    monkeypatch.setenv("VORTEMIS_ADMIN_USERNAME", "custom_admin")
+    monkeypatch.setenv("VORTEMIS_ADMIN_PASSWORD", "CustomAdminPassword!")
+    monkeypatch.setenv("VORTEMIS_ANALYST_USERNAME", "custom_analyst")
+    monkeypatch.setenv("VORTEMIS_ANALYST_PASSWORD", "CustomAnalystPassword!")
+
+    async with session_factory() as session:
+        await seed_default_operators(session)
+        await session.commit()
+        rows = (
+            await session.execute(select(SocOperator.username, SocOperator.role))
+        ).all()
+        operator = await authenticate_operator(
+            session, "custom_admin", "CustomAdminPassword!"
+        )
+
+    assert dict(rows) == {
+        "custom_admin": "admin",
+        "custom_analyst": "analyst",
+    }
+    assert operator is not None
+    assert operator.role == "admin"
+
+
 async def test_authenticate_operator_success(session_factory) -> None:
     async with session_factory() as session:
         await seed_default_operators(session)

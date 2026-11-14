@@ -81,3 +81,10 @@ Fuente de verdad: `Context_vortemis_puro.md` (especificación original). Objetiv
 - Ops: cabecera Zeek compartida, purga de telemetría, volumen del dashboard escribible y scripts de arranque corregidos.
 - Validación: 99 tests verdes y dashboard `200 ok`.
 - Próximo: revisión visual y luego logs estructurados, secretos, rate limiting y retención.
+
+## 2026-11-14 — Ops/seguridad
+- Rama: `feat/ops-security`
+- Evidencia: `docs/evidence/2026-11-14-ops-security.md`
+- Cambios: rate limiting de login, credenciales de operadores por entorno, rotación de contraseñas, healthcheck del dashboard, Caddyfile y guía de seguridad.
+- Validación: 105 tests verdes; dashboard `200 ok`; `healthcheck.py` exit 0.
+- Pendiente: rate limiter compartido, logs estructurados, auditoría, TLS real, retención e índices.

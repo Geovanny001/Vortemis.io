@@ -27,6 +27,10 @@ services:
       LOG_FILE: /app/data/samples/conn_massive.log
       MODEL_PATH: /app/models/vortemis_ae.pt
       CONTINUOUS_MODE: "true"
+      VORTEMIS_ADMIN_USERNAME: ${VORTEMIS_ADMIN_USERNAME:-admin_carles}
+      VORTEMIS_ADMIN_PASSWORD: ${VORTEMIS_ADMIN_PASSWORD:-VortemisAdmin2026!}
+      VORTEMIS_ANALYST_USERNAME: ${VORTEMIS_ANALYST_USERNAME:-soc_analyst}
+      VORTEMIS_ANALYST_PASSWORD: ${VORTEMIS_ANALYST_PASSWORD:-VortemisAnalyst2026!}
     volumes:
       - ./data/samples:/app/data/samples
 
@@ -43,6 +47,12 @@ services:
       DATABASE_URL: postgresql+asyncpg://vortemis:vortemis@db:5432/vortemis
       LOG_FILE: /app/data/samples/conn_massive.log
       MODEL_PATH: /app/models/vortemis_ae.pt
+    healthcheck:
+      test: ["CMD", "python", "scripts/healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     volumes:
       - ./data/samples:/app/data/samples
 

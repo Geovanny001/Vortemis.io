@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import os
 import secrets
 
 from sqlalchemy import select
@@ -9,10 +10,20 @@ from vortemis.infrastructure.persistence.models import SocOperator
 
 _PBKDF2_ITERATIONS = 100_000
 
-_DEFAULT_OPERATORS = [
-    ("admin_carles", "VortemisAdmin2026!", "admin"),
-    ("soc_analyst", "VortemisAnalyst2026!", "analyst"),
-]
+
+def _default_operators() -> list[tuple[str, str, str]]:
+    return [
+        (
+            os.getenv("VORTEMIS_ADMIN_USERNAME", "admin_carles"),
+            os.getenv("VORTEMIS_ADMIN_PASSWORD", "VortemisAdmin2026!"),
+            "admin",
+        ),
+        (
+            os.getenv("VORTEMIS_ANALYST_USERNAME", "soc_analyst"),
+            os.getenv("VORTEMIS_ANALYST_PASSWORD", "VortemisAnalyst2026!"),
+            "analyst",
+        ),
+    ]
 
 
 def hash_password(password: str) -> str:
@@ -49,7 +60,7 @@ async def seed_default_operators(session: AsyncSession) -> None:
             password_hash=hash_password(password),
             role=role,
         )
-        for username, password, role in _DEFAULT_OPERATORS
+        for username, password, role in _default_operators()
         if username not in existing
     ]
     if missing:

@@ -20,6 +20,7 @@ from vortemis.application.validation import (
     validate_port_filter,
 )
 from vortemis.infrastructure.persistence.auth import authenticate_operator
+from vortemis.infrastructure.persistence.login_limiter import LoginLimiter
 from vortemis.infrastructure.persistence.maintenance import purge_telemetry
 from vortemis.infrastructure.persistence.models import (
     DimConnState,
@@ -36,6 +37,8 @@ DEFAULT_LOG_FILE = "conn.log"
 MODEL_PATH_ENV = "MODEL_PATH"
 DEFAULT_MODEL_PATH = "models/vortemis_ae.pt"
 PAGE_TITLE = "Vortemis.io"
+
+_LOGIN_LIMITER = LoginLimiter()
 
 _FLOW_COLUMNS = [
     "ts",
@@ -560,12 +563,26 @@ def render_login(database_url: str) -> None:
             if st.button("Authenticate", use_container_width=True):
                 if not username or not password:
                     st.error("Username and password are required")
+                elif _LOGIN_LIMITER.is_locked(username):
+                    remaining = _LOGIN_LIMITER.remaining_seconds(username)
+                    st.error(
+                        f"Too many failed attempts. Try again in {remaining:.0f}s."
+                    )
                 else:
                     with st.spinner("Authenticating..."):
                         role = asyncio.run(authenticate(database_url, username, password))
                     if role is None:
-                        st.error("Invalid credentials")
+                        _LOGIN_LIMITER.record_failure(username)
+                        remaining = _LOGIN_LIMITER.remaining_seconds(username)
+                        if remaining > 0:
+                            st.error(
+                                "Invalid credentials. "
+                                f"Account locked for {remaining:.0f}s."
+                            )
+                        else:
+                            st.error("Invalid credentials")
                     else:
+                        _LOGIN_LIMITER.record_success(username)
                         st.session_state.operator = username
                         st.session_state.role = role
                         st.session_state.username = username

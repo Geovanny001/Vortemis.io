@@ -57,3 +57,10 @@ Registro de decisiones tomadas para que cualquier agente/sesión nueva no las de
 - **Estado del sensor**: se calcula por `mtime` del log; no se hardcodea “ACTIVE”.
 - **Tests**: smoke tests de Streamlit con datos y estado vacío; test de integración de purga.
 - **Validación**: `ruff` limpio y 99 tests verdes.
+
+## Ops/seguridad (2026-11-14)
+- **Rate limiting**: 5 intentos fallidos por usuario y bloqueo de 5 minutos; en memoria por proceso.
+- **Credenciales**: operadores configurables con `VORTEMIS_*`; rotación con `scripts/set_operator_password.py`.
+- **Healthcheck**: `scripts/healthcheck.py` y healthcheck del servicio `dashboard` en Compose.
+- **TLS**: ejemplo `deploy/Caddyfile` y checklist en `docs/ops/SECURITY.md`.
+- **Limitación**: el rate limiter debe moverse a Redis/PostgreSQL para múltiples réplicas.
