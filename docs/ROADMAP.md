@@ -88,3 +88,12 @@ Fuente de verdad: `Context_vortemis_puro.md` (especificación original). Objetiv
 - Cambios: rate limiting de login, credenciales de operadores por entorno, rotación de contraseñas, healthcheck del dashboard, Caddyfile y guía de seguridad.
 - Validación: 105 tests verdes; dashboard `200 ok`; `healthcheck.py` exit 0.
 - Pendiente: rate limiter compartido, logs estructurados, auditoría, TLS real, retención e índices.
+
+## 2026-11-14 — Separación UI/motor
+- Rama: `feat/ui-engine-separation`
+- Evidencia: `docs/evidence/2026-11-14-ui-engine-separation.md`
+- Read side: DTOs, `FlowQueryPort`, `TelemetryReadService` y adaptadores SQL.
+- Dashboard y TUI ya no importan SQLAlchemy, modelos ni repositorios.
+- `MITRE_TACTICS` se movió a `application/mitre.py`.
+- Validación: 108 tests verdes; dashboard `200 ok`.
+- Próximo: filtros/paginación SQL, modularizar la UI y elegir la presentación (Streamlit, Flet/NiceGUI o React).

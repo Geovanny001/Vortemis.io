@@ -1,6 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from vortemis.application.mitre import MITRE_TACTICS
 from vortemis.application.ports.driven.flow_repository import FlowRepositoryPort
 from vortemis.domain.entities.network_flow import NetworkFlow
 from vortemis.infrastructure.persistence.models import (
@@ -9,14 +10,6 @@ from vortemis.infrastructure.persistence.models import (
     DimProtocol,
     FactNetworkFlow,
 )
-
-MITRE_TACTICS = {
-    "TA0010": "Exfiltration",
-    "TA0008": "Lateral Movement",
-    "TA0011": "Command and Control",
-    "TA0040": "Impact",
-    "TA0043": "Reconnaissance",
-}
 
 DEFAULT_EPSILON = 0.70
 

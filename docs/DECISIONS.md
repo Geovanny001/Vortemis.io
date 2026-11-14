@@ -64,3 +64,11 @@ Registro de decisiones tomadas para que cualquier agente/sesión nueva no las de
 - **Healthcheck**: `scripts/healthcheck.py` y healthcheck del servicio `dashboard` en Compose.
 - **TLS**: ejemplo `deploy/Caddyfile` y checklist en `docs/ops/SECURITY.md`.
 - **Limitación**: el rate limiter debe moverse a Redis/PostgreSQL para múltiples réplicas.
+
+## Separación UI/motor (2026-11-14)
+- **Read side**: `TelemetryReadService` + `FlowQueryPort`, `OperatorAuthPort` y `TelemetryMaintenancePort`.
+- **DTOs**: `FlowRecord` y `OperatorIdentity`; la UI no recibe modelos SQLAlchemy.
+- **Adaptadores**: `SqlFlowQuery`, `SqlOperatorAuth` y `DatabaseTelemetryMaintenance`.
+- **Composition root**: `entrypoints/container.py`.
+- **Sin API REST**: las presentaciones usan el servicio directamente; el contrato queda listo para desktop o React.
+- **Repositorio**: se mantiene en el mismo repo; monorepo vs repo separado se decide cuando el frontend sea real.
