@@ -189,10 +189,67 @@ Archivos tocados:
 Riesgos residuales:
 ```
 
-## 5. Próximo paso
+## 5. Fixes aplicados (2026-11-14)
 
-1. Crear los tests de regresión en rojo.
-2. Implementar P0-01 y P0-02.
-3. Ejecutar `ruff check .` y `pytest`.
-4. Verificar con PostgreSQL y CLI.
-5. Registrar la evidencia del fix en este documento.
+### P0-01 — Una sola lectura del log en modo continuo
+
+Antes:
+
+```text
+initial_count = 10
+expected = 5
+```
+
+Después:
+
+```text
+initial_count = 5
+final_count = 6
+```
+
+El CLI ahora conserva la posición final de la fuente inicial y arranca el follower desde ese offset. También se añadió priming de cabeceras para que el parser TSV tenga `#fields` aunque empiece a leer al final del archivo.
+
+Archivos:
+
+- `src/vortemis/entrypoints/cli.py`
+- `src/vortemis/infrastructure/zeek/telemetry_source.py`
+- `tests/integration/test_cli_continuous.py`
+
+### P0-02 — IAT persistente entre lotes
+
+Antes:
+
+```text
+[None, None, None]
+```
+
+Después:
+
+```text
+[None, 1000.0, 1000.0]
+```
+
+El normalizador mantiene el último timestamp por IP de origen entre lotes. Se eliminó el cálculo por lote con pandas y se reemplazó por un estado explícito en el caso de uso.
+
+Archivos:
+
+- `src/vortemis/application/use_cases/flow_normalizer.py`
+- `tests/unit/application/test_flow_normalizer.py`
+
+## 6. Verificación final
+
+```text
+$ python -m uv run ruff check .
+All checks passed!
+
+$ python -m uv run pytest
+69 passed in 7.34s
+```
+
+## 7. Próximo paso
+
+1. P0-03: detectar truncado y rotación en `telemetry_source.py`.
+2. P0-04: corregir timestamps y puertos UDP en `live_sensor.py`.
+3. P0-05/P0-06: Docker con modelo y seed no destructivo.
+4. P0-07: carga segura del checkpoint.
+5. Registrar cada fix en este documento antes de hacer commit.
