@@ -1,0 +1,30 @@
+name: Docker build
+
+on:
+  push:
+    branches:
+      - release/p0-ingestion
+  pull_request:
+    branches:
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build --tag vortemis:ci .
+
+      - name: Verify model checkpoint
+        run: docker run --rm vortemis:ci python -c "from pathlib import Path; assert Path('/app/models/vortemis_ae.pt').exists(); print('model_present')"
+
+      - name: Verify package import
+        run: docker run --rm vortemis:ci python -c "import vortemis; print('import_ok')"
