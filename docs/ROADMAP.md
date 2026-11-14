@@ -97,3 +97,4 @@ Fuente de verdad: `Context_vortemis_puro.md` (especificación original). Objetiv
 - `MITRE_TACTICS` se movió a `application/mitre.py`.
 - Validación: 108 tests verdes; dashboard `200 ok`.
 - Próximo: filtros/paginación SQL, modularizar la UI y elegir la presentación (Streamlit, Flet/NiceGUI o React).
+- Handoff de la jornada: `docs/handoff/2026-11-14.md`
