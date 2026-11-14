@@ -82,3 +82,9 @@ Registro de decisiones tomadas para que cualquier agente/sesión nueva no las de
 - **Dimensiones**: caché por proceso; las tácticas son fijas y los protocolos y estados son estables.
 - **Sin Alembic**: `create_all` no añade índices ni columnas a tablas existentes; las bases ya creadas requieren migración manual.
 - **Datos previos**: los `flow_id` aleatorios existentes no se reescriben; una reingesta inserta una copia hasta purgar.
+
+## Convenciones de trabajo (2026-11-14)
+- **Pull requests en inglés**: título y cuerpo de todos los PR, incluidos los de documentación.
+- **Un release por cambio**: cada rama publica su tag y su release antes de abrir el PR.
+- **Validación previa**: `ruff check .` y `pytest` en verde antes del commit.
+- **Commits en inglés**: mensajes y nombres de archivo en inglés; la documentación interna puede seguir en español.
