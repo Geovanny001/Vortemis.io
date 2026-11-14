@@ -7,11 +7,13 @@ import numpy
 import pandas
 import plotly.express as px
 import streamlit as st
-import torch
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from vortemis.application.use_cases.bayesian_pytorch_engine import build_feature_vector
+from vortemis.application.use_cases.bayesian_pytorch_engine import (
+    build_feature_vector,
+    load_checkpoint,
+)
 from vortemis.application.validation import (
     validate_date_range,
     validate_ip_filter,
@@ -174,7 +176,7 @@ async def authenticate(database_url: str, username: str, password: str) -> str |
 def load_model_metadata(model_path: Path) -> dict | None:
     if not model_path.exists():
         return None
-    checkpoint = torch.load(model_path, map_location="cpu", weights_only=False)
+    checkpoint = load_checkpoint(model_path)
     return {
         "tau": float(checkpoint["tau"]),
         "mu": numpy.asarray(checkpoint["mu"], dtype="float32"),

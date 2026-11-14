@@ -58,8 +58,8 @@ def train_and_export(
     torch.save(
         {
             "model_state_dict": model.state_dict(),
-            "mu": mu,
-            "sigma": sigma,
+            "mu": mu.tolist(),
+            "sigma": sigma.tolist(),
             "tau": tau,
         },
         model_path,
