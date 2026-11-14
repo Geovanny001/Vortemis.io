@@ -93,6 +93,16 @@ Registro de decisiones tomadas para que cualquier agente/sesión nueva no las de
 - **Migraciones**: Alembic con revisión `0001`; las bases creadas con `create_all` se adoptan con `alembic stamp head`.
 - **Imagen Docker**: incluye `alembic.ini` y `migrations/` para migrar dentro del contenedor.
 
+## Motor: contrato de consulta (2026-11-14)
+- **Entrada**: `FlowFilters` valida zona horaria, ventana, puertos y probabilidad; normaliza protocolo y táctica.
+- **Paginación**: keyset sobre `(ts, flow_id)`, cursor ISO 8601 más UUID; sin `OFFSET`.
+- **Contrato**: `search_flows` devuelve `FlowPage`; `load_flows` se elimina para no mantener dos caminos.
+- **Umbral**: `min_probability` sustituye al flag `is_anomaly`; el umbral es decisión de la presentación.
+- **Agregaciones**: `top_sources` y `timeline` se calculan en SQL con `CASE` para anomalías.
+- **Cubo temporal**: aritmética por dialecto (PostgreSQL `floor` + `extract`, SQLite `strftime` + truncado).
+- **Zonas horarias**: el adaptador devuelve siempre `datetime` en UTC; SQLite pierde la zona al leer.
+- **Consumidores**: dashboard y TUI se adaptan a `search_flows`; usar filtros en la UI queda pendiente.
+
 ## Convenciones de trabajo (2026-11-14)
 - **Estándar de PR**: `docs/ops/PULL_REQUESTS.md` y plantilla `.github/pull_request_template.md`.
 - **Un cambio lógico por PR**: código, tests, migración, documentación y evidencia en el mismo PR; no se abren PR de documentación separados.

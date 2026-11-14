@@ -82,7 +82,7 @@ class VortemisTUI(App):
     async def refresh_data(self) -> None:
         total = await self._service.count_flows()
         anomalies = await self._service.count_anomalies(self._epsilon)
-        records = await self._service.load_flows(limit=50)
+        records = (await self._service.search_flows(limit=50)).records
 
         self._flows = [
             {

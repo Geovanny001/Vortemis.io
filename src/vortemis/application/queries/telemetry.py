@@ -5,7 +5,13 @@ from vortemis.application.ports.driven.operator_auth import OperatorAuthPort
 from vortemis.application.ports.driven.telemetry_maintenance import (
     TelemetryMaintenancePort,
 )
-from vortemis.application.queries.dto import FlowRecord, OperatorIdentity
+from vortemis.application.queries.dto import (
+    FlowPage,
+    OperatorIdentity,
+    SourceAggregate,
+    TimelinePoint,
+)
+from vortemis.application.queries.filters import FlowFilters
 
 
 class TelemetryReadService:
@@ -19,17 +25,57 @@ class TelemetryReadService:
         self._auth = auth
         self._maintenance = maintenance
 
-    async def load_flows(self, limit: int = 20000) -> list[FlowRecord]:
-        return await self._flow_query.load_flows(limit)
+    async def search_flows(
+        self,
+        filters: FlowFilters | None = None,
+        limit: int = 500,
+        cursor: str | None = None,
+    ) -> FlowPage:
+        return await self._flow_query.search_flows(
+            filters=filters,
+            limit=limit,
+            cursor=cursor,
+        )
 
-    async def count_flows(self) -> int:
-        return await self._flow_query.count_flows()
+    async def count_flows(self, filters: FlowFilters | None = None) -> int:
+        return await self._flow_query.count_flows(filters=filters)
 
-    async def count_anomalies(self, threshold: float) -> int:
-        return await self._flow_query.count_anomalies(threshold)
+    async def count_anomalies(
+        self, threshold: float, filters: FlowFilters | None = None
+    ) -> int:
+        return await self._flow_query.count_anomalies(
+            threshold=threshold,
+            filters=filters,
+        )
 
-    async def count_by_tactic(self) -> dict[str, int]:
-        return await self._flow_query.count_by_tactic()
+    async def count_by_tactic(
+        self, filters: FlowFilters | None = None
+    ) -> dict[str, int]:
+        return await self._flow_query.count_by_tactic(filters=filters)
+
+    async def top_sources(
+        self,
+        threshold: float,
+        filters: FlowFilters | None = None,
+        limit: int = 10,
+    ) -> list[SourceAggregate]:
+        return await self._flow_query.top_sources(
+            threshold=threshold,
+            filters=filters,
+            limit=limit,
+        )
+
+    async def timeline(
+        self,
+        threshold: float,
+        bucket_seconds: int = 60,
+        filters: FlowFilters | None = None,
+    ) -> list[TimelinePoint]:
+        return await self._flow_query.timeline(
+            threshold=threshold,
+            bucket_seconds=bucket_seconds,
+            filters=filters,
+        )
 
     async def authenticate(
         self,

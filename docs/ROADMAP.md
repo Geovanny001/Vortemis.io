@@ -119,3 +119,14 @@ Fuente de verdad: `Context_vortemis_puro.md` (especificación original). Objetiv
 - Esquema: Alembic con revisión inicial `0001`; base de datos documentada en `docs/ops/DATABASE.md`.
 - Validación: 129 tests verdes; PostgreSQL real con reanudación, sin cambios y truncado.
 - Próximo: contrato de consulta, `EngineMetadataPort` y ciclo de vida del engine.
+
+## 2026-11-14 - Motor: contrato de consulta
+- Rama: `feat/query-contract`
+- Evidencia: `docs/evidence/2026-11-14-query-contract.md`
+- Filtros: `FlowFilters` con ventana temporal, IPs, puertos, protocolo, táctica y `min_probability`.
+- Paginación: keyset sobre `(ts, flow_id)` con `FlowPage.next_cursor`; sin `OFFSET`.
+- Agregaciones: `top_sources` y `timeline` en SQL, con umbral de anomalía.
+- Contrato: `search_flows` sustituye a `load_flows`; los conteos aceptan filtros.
+- Presentaciones: dashboard y TUI consumen `search_flows(...).records`.
+- Validación: 145 tests verdes; PostgreSQL real con paginación, filtros y cubos temporales.
+- Próximo: `EngineMetadataPort`, ciclo de vida del engine y errores tipados.
