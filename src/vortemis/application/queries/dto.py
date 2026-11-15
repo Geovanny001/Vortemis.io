@@ -42,6 +42,15 @@ class TimelinePoint:
 
 
 @dataclass(frozen=True, slots=True)
+class ModelMetadata:
+    architecture: str
+    feature_dim: int
+    tau: float
+    mean: tuple[float, ...]
+    std: tuple[float, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class OperatorIdentity:
     username: str
     role: str

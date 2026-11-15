@@ -49,7 +49,8 @@ class VortemisTUI(App):
         super().__init__()
         self._settings = Settings.from_env()
         self._service: TelemetryReadService = build_telemetry_service(
-            self._settings.database_url
+            self._settings.database_url,
+            self._settings.model_path,
         )
         self._epsilon = self._settings.epsilon
         self._only_anomalies = False

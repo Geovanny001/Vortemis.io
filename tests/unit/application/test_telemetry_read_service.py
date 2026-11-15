@@ -4,6 +4,7 @@ from pathlib import Path
 from vortemis.application.queries.dto import (
     FlowPage,
     FlowRecord,
+    ModelMetadata,
     OperatorIdentity,
     SourceAggregate,
     TimelinePoint,
@@ -108,11 +109,26 @@ class FakeMaintenance:
         self.purged = log_file
 
 
+_METADATA = ModelMetadata(
+    architecture="6 -> 16 -> 3 -> 16 -> 6",
+    feature_dim=6,
+    tau=0.7455,
+    mean=(0.1, 0.2, 0.3, 0.4, 0.5, 0.6),
+    std=(1.0, 1.0, 1.0, 1.0, 1.0, 1.0),
+)
+
+
+class FakeMetadata:
+    async def load(self) -> ModelMetadata | None:
+        return _METADATA
+
+
 def _service(flow_query: FakeFlowQuery) -> TelemetryReadService:
     return TelemetryReadService(
         flow_query=flow_query,
         auth=FakeAuth(),
         maintenance=FakeMaintenance(),
+        metadata=FakeMetadata(),
     )
 
 
@@ -138,6 +154,7 @@ async def test_service_delegates_flow_queries() -> None:
     assert flow_query.sources == (0.7, filters, 5)
     assert len(await service.timeline(0.7, bucket_seconds=300, filters=filters)) == 1
     assert flow_query.timeline_call == (0.7, 300, filters)
+    assert await service.model_metadata() == _METADATA
 
 
 async def test_service_delegates_auth_and_purge(tmp_path: Path) -> None:
@@ -146,6 +163,7 @@ async def test_service_delegates_auth_and_purge(tmp_path: Path) -> None:
         flow_query=FakeFlowQuery(),
         auth=FakeAuth(),
         maintenance=maintenance,
+        metadata=FakeMetadata(),
     )
 
     identity = await service.authenticate("admin", "secret")
