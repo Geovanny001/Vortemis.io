@@ -126,9 +126,9 @@ _CSS = """
 
 
 async def load_flows(service: TelemetryReadService) -> pandas.DataFrame:
-    records = await service.load_flows(limit=20000)
+    page = await service.search_flows(limit=20000)
     frame = pandas.DataFrame(
-        [asdict(record) for record in records],
+        [asdict(record) for record in page.records],
         columns=_FLOW_COLUMNS,
     )
     if not frame.empty:

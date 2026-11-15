@@ -1,7 +1,10 @@
+from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from vortemis.application.queries.filters import FlowFilters
 from vortemis.domain.entities.network_flow import NetworkFlow
 from vortemis.domain.value_objects.ip_address import IPAddress
 from vortemis.domain.value_objects.port import Port
@@ -15,21 +18,24 @@ from vortemis.infrastructure.persistence.postgres_repository import (
     PostgresFlowRepository,
 )
 
+_BASE_EPOCH = 1_700_000_000.0
+
 
 def _flow(
-    epoch: float,
+    offset: float,
     probability: float,
     tactic: str | None,
     src_ip: str = "192.168.1.10",
     dst_port: int = 445,
+    proto: str = "tcp",
 ) -> NetworkFlow:
     return NetworkFlow(
         src_ip=IPAddress(src_ip),
         dst_ip=IPAddress("10.0.0.5"),
         src_port=Port(50000),
         dst_port=Port(dst_port),
-        proto=Protocol.TCP,
-        ts=Timestamp.from_epoch(epoch),
+        proto=Protocol.from_raw(proto),
+        ts=Timestamp.from_epoch(_BASE_EPOCH + offset),
         orig_bytes=1000,
         resp_bytes=200,
         duration=0.5,
@@ -39,7 +45,7 @@ def _flow(
     )
 
 
-async def test_sql_flow_query_returns_dtos_and_counts(tmp_path: Path) -> None:
+async def _query(tmp_path: Path) -> SqlFlowQuery:
     database_url = f"sqlite+aiosqlite:///{(tmp_path / 'query.db').as_posix()}"
     engine = create_async_engine(database_url)
     async with engine.begin() as connection:
@@ -48,26 +54,134 @@ async def test_sql_flow_query_returns_dtos_and_counts(tmp_path: Path) -> None:
     repository = PostgresFlowRepository(session_factory)
     await repository.save_batch(
         [
-            _flow(1_700_000_000.0, 0.10, None),
-            _flow(1_700_000_100.0, 0.90, "TA0043", src_ip="192.168.1.11"),
-            _flow(1_700_000_200.0, 0.80, "TA0010", src_ip="192.168.1.12"),
+            _flow(0, 0.10, None, "192.168.1.10", 445, "tcp"),
+            _flow(100, 0.90, "TA0043", "192.168.1.11", 53, "udp"),
+            _flow(200, 0.80, "TA0010", "192.168.1.12", 443, "tcp"),
+            _flow(300, 0.95, "TA0008", "192.168.1.10", 22, "tcp"),
+            _flow(400, 0.05, None, "192.168.1.13", 8080, "tcp"),
         ]
     )
     async with session_factory() as session:
         await seed_default_operators(session)
         await session.commit()
     await engine.dispose()
+    return SqlFlowQuery(database_url)
 
-    query = SqlFlowQuery(database_url)
-    records = await query.load_flows(limit=10)
 
-    assert [record.mitre_tactic for record in records] == ["TA0010", "TA0043", None]
-    assert records[0].src_ip == "192.168.1.12"
-    assert records[0].protocol == "tcp"
-    assert records[0].conn_state == "SF"
-    assert await query.count_flows() == 3
-    assert await query.count_anomalies(0.7) == 2
-    assert await query.count_by_tactic() == {"TA0010": 1, "TA0043": 1}
+async def test_search_returns_dtos_in_descending_order(tmp_path: Path) -> None:
+    query = await _query(tmp_path)
+
+    page = await query.search_flows(limit=10)
+
+    assert [record.dst_port for record in page.records] == [8080, 22, 443, 53, 445]
+    assert page.records[0].protocol == "tcp"
+    assert page.records[1].conn_state == "SF"
+    assert page.next_cursor is None
+
+
+async def test_search_paginates_with_a_cursor(tmp_path: Path) -> None:
+    query = await _query(tmp_path)
+
+    first = await query.search_flows(limit=2)
+    second = await query.search_flows(limit=2, cursor=first.next_cursor)
+    third = await query.search_flows(limit=2, cursor=second.next_cursor)
+
+    assert [record.dst_port for record in first.records] == [8080, 22]
+    assert [record.dst_port for record in second.records] == [443, 53]
+    assert [record.dst_port for record in third.records] == [445]
+    assert second.next_cursor is not None
+    assert third.next_cursor is None
+
+
+async def test_search_applies_filters(tmp_path: Path) -> None:
+    query = await _query(tmp_path)
+
+    by_source = await query.search_flows(
+        filters=FlowFilters(src_ip="192.168.1.10")
+    )
+    by_protocol = await query.search_flows(filters=FlowFilters(protocol="UDP"))
+    by_tactic = await query.search_flows(filters=FlowFilters(tactic="ta0010"))
+    by_port = await query.search_flows(filters=FlowFilters(dst_port=22))
+    by_probability = await query.search_flows(
+        filters=FlowFilters(min_probability=0.8)
+    )
+    by_window = await query.search_flows(
+        filters=FlowFilters(
+            since=datetime.fromtimestamp(_BASE_EPOCH + 150, tz=UTC),
+            until=datetime.fromtimestamp(_BASE_EPOCH + 250, tz=UTC),
+        )
+    )
+
+    assert [record.dst_port for record in by_source.records] == [22, 445]
+    assert [record.dst_port for record in by_protocol.records] == [53]
+    assert [record.dst_port for record in by_tactic.records] == [443]
+    assert [record.dst_port for record in by_port.records] == [22]
+    assert [record.dst_port for record in by_probability.records] == [22, 443, 53]
+    assert [record.dst_port for record in by_window.records] == [443]
+
+
+async def test_counts_respect_filters(tmp_path: Path) -> None:
+    query = await _query(tmp_path)
+
+    assert await query.count_flows() == 5
+    assert await query.count_flows(FlowFilters(src_ip="192.168.1.10")) == 2
+    assert await query.count_anomalies(0.7) == 3
+    assert await query.count_anomalies(0.7, FlowFilters(protocol="tcp")) == 2
+    assert await query.count_by_tactic() == {
+        "TA0008": 1,
+        "TA0010": 1,
+        "TA0043": 1,
+    }
+    assert await query.count_by_tactic(FlowFilters(src_ip="192.168.1.10")) == {
+        "TA0008": 1
+    }
+
+
+async def test_top_sources_orders_by_volume(tmp_path: Path) -> None:
+    query = await _query(tmp_path)
+
+    sources = await query.top_sources(0.7, limit=2)
+
+    assert len(sources) == 2
+    assert sources[0].src_ip == "192.168.1.10"
+    assert sources[0].flows == 2
+    assert sources[0].anomalies == 1
+
+    all_sources = await query.top_sources(0.7, limit=10)
+    by_ip = {source.src_ip: source for source in all_sources}
+
+    assert by_ip["192.168.1.11"].anomalies == 1
+    assert by_ip["192.168.1.13"].anomalies == 0
+
+
+async def test_timeline_buckets_by_window(tmp_path: Path) -> None:
+    query = await _query(tmp_path)
+
+    points = await query.timeline(0.7, bucket_seconds=600)
+    narrow = await query.timeline(0.7, bucket_seconds=60)
+
+    assert [point.flows for point in points] == [4, 1]
+    assert [point.anomalies for point in points] == [3, 0]
+    assert sum(point.flows for point in points) == 5
+    assert len(narrow) == 5
+
+
+async def test_invalid_cursor_and_arguments_are_rejected(tmp_path: Path) -> None:
+    query = await _query(tmp_path)
+
+    with pytest.raises(ValueError):
+        await query.search_flows(cursor="not-a-cursor")
+    with pytest.raises(ValueError):
+        await query.search_flows(limit=0)
+    with pytest.raises(ValueError):
+        await query.count_anomalies(1.5)
+    with pytest.raises(ValueError):
+        await query.timeline(0.7, bucket_seconds=0)
+
+
+async def test_operator_authentication_still_works(tmp_path: Path) -> None:
+    await _query(tmp_path)
+    database_url = f"sqlite+aiosqlite:///{(tmp_path / 'query.db').as_posix()}"
 
     auth = SqlOperatorAuth(database_url)
     identity = await auth.authenticate("admin_carles", "VortemisAdmin2026!")

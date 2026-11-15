@@ -22,6 +22,26 @@ class FlowRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class FlowPage:
+    records: list[FlowRecord]
+    next_cursor: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SourceAggregate:
+    src_ip: str
+    flows: int
+    anomalies: int
+
+
+@dataclass(frozen=True, slots=True)
+class TimelinePoint:
+    bucket_start: datetime
+    flows: int
+    anomalies: int
+
+
+@dataclass(frozen=True, slots=True)
 class OperatorIdentity:
     username: str
     role: str
