@@ -1,7 +1,10 @@
+from datetime import timedelta
 from pathlib import Path
 
 from vortemis.application.queries.telemetry import TelemetryReadService
+from vortemis.application.sessions import OperatorSessionService
 from vortemis.infrastructure.model.metadata import TorchEngineMetadata
+from vortemis.infrastructure.persistence.api_tokens import SqlTokenStore
 from vortemis.infrastructure.persistence.database import SqlDatabase
 from vortemis.infrastructure.persistence.flow_query import SqlFlowQuery
 from vortemis.infrastructure.persistence.operator_auth import SqlOperatorAuth
@@ -18,4 +21,14 @@ def build_telemetry_service(
         auth=SqlOperatorAuth(database),
         maintenance=DatabaseTelemetryMaintenance(database),
         metadata=TorchEngineMetadata(model_path),
+    )
+
+
+def build_session_service(
+    database: SqlDatabase, token_ttl: timedelta
+) -> OperatorSessionService:
+    return OperatorSessionService(
+        auth=SqlOperatorAuth(database),
+        tokens=SqlTokenStore(database),
+        ttl=token_ttl,
     )
