@@ -18,6 +18,7 @@ from vortemis.application.validation import (
     validate_port_filter,
 )
 from vortemis.entrypoints.container import build_telemetry_service
+from vortemis.infrastructure.persistence.database import SqlDatabase
 from vortemis.infrastructure.persistence.login_limiter import LoginLimiter
 
 DATABASE_URL_ENV = "DATABASE_URL"
@@ -120,6 +121,14 @@ _CSS = """
 .mono { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
 </style>
 """
+
+
+@st.cache_resource
+def build_service(database_url: str, model_path: str) -> TelemetryReadService:
+    return build_telemetry_service(
+        SqlDatabase(database_url, pooling=False),
+        Path(model_path),
+    )
 
 
 async def load_flows(service: TelemetryReadService) -> pandas.DataFrame:
@@ -562,7 +571,7 @@ def main() -> None:
     database_url = os.getenv(DATABASE_URL_ENV, DEFAULT_DATABASE_URL)
     model_path = Path(os.getenv(MODEL_PATH_ENV, DEFAULT_MODEL_PATH))
     log_file = Path(os.getenv(LOG_FILE_ENV, DEFAULT_LOG_FILE))
-    service = build_telemetry_service(database_url, model_path)
+    service = build_service(database_url, str(model_path))
 
     if not st.session_state.get("operator"):
         render_login(service)

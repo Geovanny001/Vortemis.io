@@ -24,13 +24,13 @@ from vortemis.application.queries.dto import (
     TimelinePoint,
 )
 from vortemis.application.queries.filters import FlowFilters
+from vortemis.infrastructure.persistence.database import SqlDatabase
 from vortemis.infrastructure.persistence.models import (
     DimConnState,
     DimMitreTactic,
     DimProtocol,
     FactNetworkFlow,
 )
-from vortemis.infrastructure.persistence.session import session_scope
 
 _CURSOR_SEPARATOR = "|"
 _FLOW_COLUMNS = (
@@ -53,8 +53,8 @@ _FLOW_COLUMNS = (
 
 
 class SqlFlowQuery(FlowQueryPort):
-    def __init__(self, database_url: str) -> None:
-        self._database_url = database_url
+    def __init__(self, database: SqlDatabase) -> None:
+        self._database = database
 
     async def search_flows(
         self,
@@ -82,7 +82,7 @@ class SqlFlowQuery(FlowQueryPort):
             .order_by(FactNetworkFlow.ts.desc(), FactNetworkFlow.flow_id.desc())
             .limit(limit + 1)
         )
-        async with session_scope(self._database_url) as session:
+        async with self._database.session() as session:
             rows = (await session.execute(statement)).all()
         records = [_to_record(row) for row in rows[:limit]]
         next_cursor = (
@@ -96,7 +96,7 @@ class SqlFlowQuery(FlowQueryPort):
             .where(*_conditions(filters))
             .subquery()
         )
-        async with session_scope(self._database_url) as session:
+        async with self._database.session() as session:
             value = await session.scalar(statement)
         return int(value or 0)
 
@@ -111,7 +111,7 @@ class SqlFlowQuery(FlowQueryPort):
         statement = select(func.count()).select_from(
             _joined([FactNetworkFlow.id]).where(*conditions).subquery()
         )
-        async with session_scope(self._database_url) as session:
+        async with self._database.session() as session:
             value = await session.scalar(statement)
         return int(value or 0)
 
@@ -128,7 +128,7 @@ class SqlFlowQuery(FlowQueryPort):
             .where(*_conditions(filters))
             .group_by(DimMitreTactic.mitre_id)
         )
-        async with session_scope(self._database_url) as session:
+        async with self._database.session() as session:
             rows = (await session.execute(statement)).all()
         return {str(row[0]): int(row[1]) for row in rows}
 
@@ -155,7 +155,7 @@ class SqlFlowQuery(FlowQueryPort):
             .order_by(func.count(FactNetworkFlow.id).desc())
             .limit(limit)
         )
-        async with session_scope(self._database_url) as session:
+        async with self._database.session() as session:
             rows = (await session.execute(statement)).all()
         return [
             SourceAggregate(
@@ -175,7 +175,7 @@ class SqlFlowQuery(FlowQueryPort):
         _check_probability(threshold)
         if bucket_seconds <= 0:
             raise ValueError("bucket_seconds must be positive")
-        async with session_scope(self._database_url) as session:
+        async with self._database.session() as session:
             bucket = _bucket_expression(
                 session.get_bind().dialect.name, bucket_seconds
             )

@@ -2,16 +2,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from vortemis.domain.entities.network_flow import NetworkFlow
 from vortemis.domain.value_objects.ip_address import IPAddress
 from vortemis.domain.value_objects.port import Port
 from vortemis.domain.value_objects.protocol import Protocol
 from vortemis.domain.value_objects.timestamp import Timestamp
+from vortemis.infrastructure.persistence.database import SqlDatabase
 from vortemis.infrastructure.persistence.maintenance import purge_telemetry
 from vortemis.infrastructure.persistence.models import (
-    Base,
     FactNetworkFlow,
     IngestionState,
 )
@@ -36,16 +35,17 @@ def _flow() -> NetworkFlow:
     )
 
 
-async def test_purge_telemetry_removes_flows_and_rewrites_log(tmp_path: Path) -> None:
-    db_path = tmp_path / "vortemis.db"
-    database_url = f"sqlite+aiosqlite:///{db_path.as_posix()}"
-    engine = create_async_engine(database_url)
-    async with engine.begin() as connection:
-        await connection.run_sync(Base.metadata.create_all)
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
-    repository = PostgresFlowRepository(session_factory)
+async def test_purge_telemetry_removes_flows_and_rewrites_log(
+    tmp_path: Path,
+) -> None:
+    database = SqlDatabase(
+        f"sqlite+aiosqlite:///{(tmp_path / 'vortemis.db').as_posix()}",
+        pooling=False,
+    )
+    await database.create_schema()
+    repository = PostgresFlowRepository(database.session_factory)
     await repository.save_batch([_flow()])
-    async with session_factory() as session:
+    async with database.session() as session:
         session.add(
             IngestionState(
                 source_path=str(tmp_path / "conn.log"),
@@ -56,20 +56,20 @@ async def test_purge_telemetry_removes_flows_and_rewrites_log(tmp_path: Path) ->
             )
         )
         await session.commit()
-    await engine.dispose()
 
     log_file = tmp_path / "conn.log"
     log_file.write_text("\n".join(ZEEK_CONN_HEADER) + "\nrow\n", encoding="utf-8")
 
-    await purge_telemetry(database_url, log_file)
+    await purge_telemetry(database, log_file)
 
-    engine = create_async_engine(database_url)
-    async with async_sessionmaker(engine, expire_on_commit=False)() as session:
-        count = await session.scalar(select(func.count()).select_from(FactNetworkFlow))
+    async with database.session() as session:
+        count = await session.scalar(
+            select(func.count()).select_from(FactNetworkFlow)
+        )
         states = await session.scalar(
             select(func.count()).select_from(IngestionState)
         )
-    await engine.dispose()
+    await database.dispose()
 
     assert count == 0
     assert states == 0

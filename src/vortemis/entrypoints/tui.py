@@ -10,6 +10,7 @@ from textual.widgets import DataTable, Footer, Header, Static
 from vortemis.application.queries.telemetry import TelemetryReadService
 from vortemis.config import Settings
 from vortemis.entrypoints.container import build_telemetry_service
+from vortemis.infrastructure.persistence.database import SqlDatabase
 
 
 class KpiBox(Static):
@@ -49,7 +50,7 @@ class VortemisTUI(App):
         super().__init__()
         self._settings = Settings.from_env()
         self._service: TelemetryReadService = build_telemetry_service(
-            self._settings.database_url,
+            SqlDatabase(self._settings.database_url),
             self._settings.model_path,
         )
         self._epsilon = self._settings.epsilon

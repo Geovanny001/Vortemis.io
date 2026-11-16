@@ -119,6 +119,15 @@ Registro de decisiones tomadas para que cualquier agente/sesión nueva no las de
 - **Límite**: un test en subproceso verifica que `torch` no aparece en `sys.modules` al importar features.
 - **Regla**: las features describen el vector, no la red; viven fuera del módulo de inferencia.
 
+## Motor: ciclo de vida del engine (2026-11-16)
+- **Dueño único**: `SqlDatabase` encapsula engine, session factory, dialecto, esquema y cierre.
+- **Adaptadores**: reciben `SqlDatabase`, no una URL; no crean conexiones propias.
+- **Presentaciones**: `NullPool` porque Streamlit ejecuta `asyncio.run` por operación y las conexiones no pueden cruzar bucles.
+- **Procesos con un bucle**: CLI, TUI y workers mantienen el pool normal.
+- **Esquema**: `create_schema` se mueve del entrypoint al objeto de base de datos.
+- **Cierre**: explícito en CLI y tests; en Streamlit lo gestiona el proceso mediante `st.cache_resource`.
+- **Eliminado**: `session.py`; no queda ningún engine por consulta.
+
 ## Convenciones de trabajo (2026-11-14)
 - **Estándar de PR**: `docs/ops/PULL_REQUESTS.md` y plantilla `.github/pull_request_template.md`.
 - **Un cambio lógico por PR**: código, tests, migración, documentación y evidencia en el mismo PR; no se abren PR de documentación separados.
