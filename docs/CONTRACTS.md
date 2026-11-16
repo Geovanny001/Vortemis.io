@@ -149,7 +149,32 @@ GET /v1/engine/metadata
 
 `404` si no hay checkpoint.
 
-## 6. Salud
+## 6. Administración
+
+Requieren rol `admin`. Cualquier otro rol recibe `403`.
+
+```text
+POST /v1/admin/purge                          -> 204
+PUT  /v1/admin/operators/{username}/password  -> 204
+```
+
+Purga:
+
+- Trunca `fact_network_flows`, borra `ingestion_state` y reescribe el log con la cabecera Zeek.
+- Es irreversible: la telemetría anterior no se puede recuperar.
+- No toca dimensiones ni operadores.
+
+Rotación de contraseña:
+
+```json
+{ "password": "NuevaClave2026!", "role": "analyst" }
+```
+
+- `password`: mínimo 12 caracteres.
+- `role`: opcional; si se omite, el rol actual no cambia.
+- Si el operador no existe, se crea.
+
+## 7. Salud
 
 ```text
 GET /v1/health   (sin autenticación)
@@ -161,7 +186,7 @@ GET /v1/health   (sin autenticación)
 
 `503` si la base de datos no responde.
 
-## 7. Errores
+## 8. Errores
 
 ```json
 { "detail": "mensaje" }
@@ -171,12 +196,13 @@ GET /v1/health   (sin autenticación)
 |---|---|
 | 400 | Cursor inválido |
 | 401 | Token ausente, inválido, expirado o revocado |
+| 403 | Rol insuficiente |
 | 404 | Recurso inexistente |
 | 422 | Filtros fuera de rango |
 | 429 | Rate limit de login |
 | 503 | Base de datos no disponible |
 
-## 8. Reglas del contrato
+## 9. Reglas del contrato
 
 - `/v1` es aditivo: no se renombran ni se quitan campos dentro de la versión.
 - Cualquier cambio incompatible abre `/v2`.
@@ -184,7 +210,7 @@ GET /v1/health   (sin autenticación)
 - La API no conoce PostgreSQL ni el motor; solo `TelemetryReadService`.
 - El motor autentica; la API aplica los roles. La purga solo se expondrá a `admin`.
 
-## 9. CORS
+## 10. CORS
 
 - Allowlist explícita por entorno.
 - Sin `*` y sin cookies.

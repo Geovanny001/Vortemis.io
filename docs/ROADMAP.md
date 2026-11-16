@@ -172,3 +172,13 @@ Fuente de verdad: `Context_vortemis_puro.md` (especificación original). Objetiv
 - Validación: 174 tests verdes; uvicorn contra PostgreSQL con 5000 flujos y ciclo de token completo.
 - Decisión: API en este repo, frontend en otro; se revierte "sin API REST".
 - Próximo: refresh token, rate limit compartido, OpenAPI como artefacto y servicio `api` en Compose.
+
+## 2026-11-16 - API: errores tipados y escritura admin
+- Rama: `feat/api-errors-admin`
+- Evidencia: `docs/evidence/2026-11-16-api-errors-admin.md`
+- Errores: `InvalidQueryError`, `NotFoundError` y `PermissionDeniedError` con mapeo 400/422/403/404 y 503 para SQLAlchemy.
+- Admin: `POST /v1/admin/purge` y `PUT /v1/admin/operators/{username}/password`, solo rol `admin`.
+- Adaptador: `OperatorAdminPort` + `SqlOperatorAdmin`.
+- Contrato: `docs/CONTRACTS.md` con la sección de administración y el código 403.
+- Validación: 178 tests verdes; uvicorn contra PostgreSQL con 400, 403, 204 y purga.
+- Próximo: refresh token y rate limit compartido.

@@ -16,6 +16,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.engine import Row
 
+from vortemis.application.errors import InvalidQueryError
 from vortemis.application.ports.driven.flow_query import FlowQueryPort
 from vortemis.application.queries.dto import (
     FlowPage,
@@ -63,7 +64,7 @@ class SqlFlowQuery(FlowQueryPort):
         cursor: str | None = None,
     ) -> FlowPage:
         if limit <= 0:
-            raise ValueError("limit must be positive")
+            raise InvalidQueryError("limit must be positive")
         conditions = _conditions(filters)
         if cursor is not None:
             cursor_ts, cursor_flow = _decode_cursor(cursor)
@@ -140,7 +141,7 @@ class SqlFlowQuery(FlowQueryPort):
     ) -> list[SourceAggregate]:
         _check_probability(threshold)
         if limit <= 0:
-            raise ValueError("limit must be positive")
+            raise InvalidQueryError("limit must be positive")
         anomalies = _anomaly_count(threshold)
         statement = (
             _joined(
@@ -174,7 +175,7 @@ class SqlFlowQuery(FlowQueryPort):
     ) -> list[TimelinePoint]:
         _check_probability(threshold)
         if bucket_seconds <= 0:
-            raise ValueError("bucket_seconds must be positive")
+            raise InvalidQueryError("bucket_seconds must be positive")
         async with self._database.session() as session:
             bucket = _bucket_expression(
                 session.get_bind().dialect.name, bucket_seconds
@@ -267,19 +268,19 @@ def _encode_cursor(record: FlowRecord) -> str:
 def _decode_cursor(cursor: str) -> tuple[datetime, str]:
     raw_ts, separator, flow_id = cursor.partition(_CURSOR_SEPARATOR)
     if not separator or not flow_id:
-        raise ValueError(f"invalid cursor: {cursor!r}")
+        raise InvalidQueryError(f"invalid cursor: {cursor!r}")
     try:
         timestamp = datetime.fromisoformat(raw_ts)
     except ValueError as exc:
-        raise ValueError(f"invalid cursor: {cursor!r}") from exc
+        raise InvalidQueryError(f"invalid cursor: {cursor!r}") from exc
     if timestamp.tzinfo is None:
-        raise ValueError(f"invalid cursor: {cursor!r}")
+        raise InvalidQueryError(f"invalid cursor: {cursor!r}")
     return timestamp, flow_id
 
 
 def _check_probability(value: float) -> None:
     if not 0.0 <= value <= 1.0:
-        raise ValueError("threshold must be within [0, 1]")
+        raise InvalidQueryError("threshold must be within [0, 1]")
 
 
 def _to_record(row: Row[Any]) -> FlowRecord:

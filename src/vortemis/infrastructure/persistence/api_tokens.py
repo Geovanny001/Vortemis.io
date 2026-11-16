@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import select, update
 
+from vortemis.application.errors import NotFoundError
 from vortemis.application.ports.driven.token_store import IssuedToken, TokenStorePort
 from vortemis.application.queries.dto import OperatorIdentity
 from vortemis.infrastructure.persistence.database import SqlDatabase
@@ -31,7 +32,7 @@ class SqlTokenStore(TokenStorePort):
                 )
             )
             if operator_id is None:
-                raise ValueError(f"unknown operator: {operator.username}")
+                raise NotFoundError(f"unknown operator: {operator.username}")
             session.add(
                 ApiToken(
                     token_hash=_digest(token),

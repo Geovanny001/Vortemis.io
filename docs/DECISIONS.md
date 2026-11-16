@@ -140,6 +140,14 @@ Registro de decisiones tomadas para que cualquier agente/sesión nueva no las de
 - **Decisión revertida**: antes se decidió no tener API REST; ahora hay un adaptador HTTP y el motor no cambia.
 - **Pendiente**: refresh token, rate limit compartido, OpenAPI como artefacto y auditoría.
 
+## API: errores tipados y escritura admin (2026-11-16)
+- **Errores**: `ApplicationError`, `InvalidQueryError(ValueError)`, `NotFoundError`, `PermissionDeniedError`.
+- **Mapeo**: handlers globales en `create_app`; 400 cursor, 422 filtros, 403 rol, 404 ausente, 503 base de datos.
+- **Autorización**: `require_admin` en la API; el motor no decide roles.
+- **Purga**: `POST /v1/admin/purge`, irreversible, solo `admin`.
+- **Rotación**: `PUT /v1/admin/operators/{username}/password`, mínimo 12 caracteres, crea el operador si falta.
+- **Compatibilidad**: `InvalidQueryError` hereda de `ValueError` para no romper consumidores.
+
 ## Convenciones de trabajo (2026-11-14)
 - **Estándar de PR**: `docs/ops/PULL_REQUESTS.md` y plantilla `.github/pull_request_template.md`.
 - **Un cambio lógico por PR**: código, tests, migración, documentación y evidencia en el mismo PR; no se abren PR de documentación separados.

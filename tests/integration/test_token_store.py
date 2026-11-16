@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import select
 
+from vortemis.application.errors import NotFoundError
 from vortemis.application.queries.dto import OperatorIdentity
 from vortemis.infrastructure.persistence.api_tokens import SqlTokenStore
 from vortemis.infrastructure.persistence.auth import seed_default_operators
@@ -81,7 +82,7 @@ async def test_unknown_operator_cannot_receive_a_token(
 ) -> None:
     store = SqlTokenStore(database)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(NotFoundError):
         await store.issue(
             OperatorIdentity(username="ghost", role="analyst"),
             datetime.now(UTC) + timedelta(hours=1),
