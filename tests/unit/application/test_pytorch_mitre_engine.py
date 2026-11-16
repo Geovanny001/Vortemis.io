@@ -4,11 +4,10 @@ import numpy
 import pytest
 import torch
 
+from vortemis.application.features import FEATURE_DIM, build_feature_vector
 from vortemis.application.use_cases.bayesian_pytorch_engine import (
-    FEATURE_DIM,
     BayesianPyTorchEngine,
     TrafficAutoencoder,
-    build_feature_vector,
     classify_mitre_tactic,
     load_checkpoint,
 )

@@ -9,7 +9,7 @@ from vortemis.application.calibration import (
     normalize_label,
     vectorize_features,
 )
-from vortemis.application.use_cases.bayesian_pytorch_engine import build_feature_vector
+from vortemis.application.features import build_feature_vector
 
 
 def test_normalize_label_handles_replacement_character() -> None:

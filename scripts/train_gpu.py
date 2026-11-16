@@ -34,7 +34,7 @@ def main() -> None:
 async def _features_from_log(log_path: Path) -> numpy.ndarray:
     import pandas
 
-    from vortemis.application.use_cases.bayesian_pytorch_engine import build_feature_vector
+    from vortemis.application.features import build_feature_vector
     from vortemis.application.use_cases.mapper import ZeekFlowMapper
     from vortemis.infrastructure.zeek.telemetry_source import ZeekTelemetrySource
 

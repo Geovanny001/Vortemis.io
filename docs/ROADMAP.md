@@ -140,3 +140,13 @@ Fuente de verdad: `Context_vortemis_puro.md` (especificación original). Objetiv
 - Presentación: el dashboard ya no lee el checkpoint ni importa NumPy; usa `service.model_metadata()`.
 - Validación: 148 tests verdes; smoke tests del dashboard con el checkpoint real.
 - Próximo: separar `build_feature_vector` del módulo del modelo, ciclo de vida del engine y errores tipados.
+
+## 2026-11-16 - Motor: features separadas del modelo
+- Rama: `refactor/feature-module`
+- Evidencia: `docs/evidence/2026-11-16-feature-module.md`
+- Módulo: `application/features.py` con `FEATURE_DIM` y `build_feature_vector`, solo NumPy.
+- Modelo: `bayesian_pytorch_engine.py` importa `FEATURE_DIM` y deja de exportar el constructor de features.
+- Presentación: el dashboard ya no importa el módulo del modelo ni carga PyTorch.
+- Límite protegido: test en subproceso que verifica que `torch` no entra al importar features.
+- Validación: 152 tests verdes; smoke tests del dashboard con el checkpoint real.
+- Próximo: ciclo de vida del engine, errores tipados y retención.

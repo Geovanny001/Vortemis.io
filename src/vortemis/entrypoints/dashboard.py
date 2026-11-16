@@ -8,12 +8,10 @@ import pandas
 import plotly.express as px
 import streamlit as st
 
+from vortemis.application.features import build_feature_vector
 from vortemis.application.mitre import MITRE_TACTICS
 from vortemis.application.queries.dto import ModelMetadata
 from vortemis.application.queries.telemetry import TelemetryReadService
-from vortemis.application.use_cases.bayesian_pytorch_engine import (
-    build_feature_vector,
-)
 from vortemis.application.validation import (
     validate_date_range,
     validate_ip_filter,

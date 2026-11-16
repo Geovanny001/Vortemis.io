@@ -3,9 +3,9 @@ import torch
 
 from doubles.fake_telemetry_source import FakeTelemetrySource
 from doubles.in_memory_flow_repository import InMemoryFlowRepository
+from vortemis.application.features import FEATURE_DIM
 from vortemis.application.ports.driving.raw_record import RawRecord
 from vortemis.application.use_cases.bayesian_pytorch_engine import (
-    FEATURE_DIM,
     BayesianPyTorchEngine,
     TrafficAutoencoder,
 )

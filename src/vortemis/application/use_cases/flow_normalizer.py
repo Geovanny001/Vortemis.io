@@ -3,12 +3,12 @@ from dataclasses import replace
 
 import numpy
 
+from vortemis.application.features import build_feature_vector
 from vortemis.application.ports.driven.flow_repository import FlowRepositoryPort
 from vortemis.application.ports.driving.raw_record import RawRecord
 from vortemis.application.ports.driving.telemetry_source import TelemetrySourcePort
 from vortemis.application.use_cases.bayesian_pytorch_engine import (
     BayesianPyTorchEngine,
-    build_feature_vector,
     classify_mitre_tactic,
 )
 from vortemis.application.use_cases.mapper import ZeekFlowMapper

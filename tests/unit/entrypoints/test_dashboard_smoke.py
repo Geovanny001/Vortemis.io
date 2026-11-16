@@ -18,6 +18,15 @@ _DASHBOARD_PATH = str(Path("src/vortemis/entrypoints/dashboard.py").resolve())
 _MODEL_PATH = str(Path("models/vortemis_ae.pt").resolve())
 
 
+def test_dashboard_does_not_import_the_model_module() -> None:
+    source = Path("src/vortemis/entrypoints/dashboard.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "bayesian_pytorch_engine" not in source
+    assert "load_checkpoint" not in source
+
+
 def _flow() -> NetworkFlow:
     return NetworkFlow(
         src_ip=IPAddress("192.168.1.10"),
