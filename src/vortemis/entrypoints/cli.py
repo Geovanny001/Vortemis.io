@@ -1,20 +1,18 @@
 import asyncio
 from pathlib import Path
 
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-
 from vortemis.application.use_cases.bayesian_pytorch_engine import BayesianPyTorchEngine
 from vortemis.application.use_cases.flow_normalizer import FlowNormalizerUseCase
 from vortemis.application.use_cases.training import train_and_export
 from vortemis.banner import print_banner
 from vortemis.config import Settings
 from vortemis.infrastructure.persistence.auth import seed_default_operators
+from vortemis.infrastructure.persistence.database import SqlDatabase
 from vortemis.infrastructure.persistence.ingestion_state import (
     CheckpointRecorder,
     SqlIngestionState,
     resolve_resume_offset,
 )
-from vortemis.infrastructure.persistence.models import Base
 from vortemis.infrastructure.persistence.postgres_repository import (
     PostgresFlowRepository,
 )
@@ -37,11 +35,10 @@ async def main() -> None:
     print_banner()
     settings = Settings.from_env()
     _ensure_model(settings)
-    engine = create_async_engine(settings.database_url)
+    database = SqlDatabase(settings.database_url)
     try:
-        async with engine.begin() as connection:
-            await connection.run_sync(Base.metadata.create_all)
-        session_factory = async_sessionmaker(engine, expire_on_commit=False)
+        await database.create_schema()
+        session_factory = database.session_factory
         async with session_factory() as session:
             await seed_default_operators(session)
             await session.commit()
@@ -74,7 +71,7 @@ async def main() -> None:
         finally:
             await recorder.flush()
     finally:
-        await engine.dispose()
+        await database.dispose()
 
 
 async def _follow(

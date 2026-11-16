@@ -150,3 +150,14 @@ Fuente de verdad: `Context_vortemis_puro.md` (especificación original). Objetiv
 - Límite protegido: test en subproceso que verifica que `torch` no entra al importar features.
 - Validación: 152 tests verdes; smoke tests del dashboard con el checkpoint real.
 - Próximo: ciclo de vida del engine, errores tipados y retención.
+
+## 2026-11-16 - Motor: ciclo de vida del engine
+- Rama: `refactor/engine-lifecycle`
+- Evidencia: `docs/evidence/2026-11-16-engine-lifecycle.md`
+- `SqlDatabase`: engine, session factory, `dialect_name`, `create_schema` y `dispose` en un solo objeto.
+- Adaptadores: `SqlFlowQuery`, `SqlOperatorAuth` y `DatabaseTelemetryMaintenance` reciben la base de datos.
+- Presentaciones: dashboard con `@st.cache_resource` y `NullPool`; TUI con pool normal.
+- CLI: usa `SqlDatabase` para esquema, sesiones y estado de ingesta.
+- Eliminado: `session.py` y la creación de un engine por consulta.
+- Validación: 156 tests verdes; PostgreSQL real con tres bucles separados y modo con pool.
+- Próximo: errores tipados, lecturas del dashboard en un solo bucle y retención.
