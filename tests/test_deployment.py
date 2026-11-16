@@ -42,3 +42,13 @@ def test_ci_uploads_the_openapi_artifact() -> None:
 
     assert "scripts/export_openapi.py" in content
     assert "actions/upload-artifact@v4" in content
+
+
+def test_release_workflow_attaches_the_openapi_artifact() -> None:
+    content = Path(".github/workflows/openapi-release.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "release:" in content
+    assert "gh release upload" in content
+    assert "docs/openapi.json" in content
