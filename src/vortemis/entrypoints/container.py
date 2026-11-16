@@ -26,12 +26,15 @@ def build_telemetry_service(
 
 
 def build_session_service(
-    database: SqlDatabase, token_ttl: timedelta
+    database: SqlDatabase,
+    access_ttl: timedelta,
+    refresh_ttl: timedelta,
 ) -> OperatorSessionService:
     return OperatorSessionService(
         auth=SqlOperatorAuth(database),
         tokens=SqlTokenStore(database),
-        ttl=token_ttl,
+        access_ttl=access_ttl,
+        refresh_ttl=refresh_ttl,
     )
 
 

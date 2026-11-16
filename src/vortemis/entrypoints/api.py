@@ -13,11 +13,12 @@ from vortemis.application.errors import (
     NotFoundError,
     PermissionDeniedError,
 )
+from vortemis.application.ports.driven.login_throttle import LoginThrottlePort
 from vortemis.application.ports.driven.operator_admin import OperatorAdminPort
 from vortemis.application.queries.dto import OperatorIdentity
 from vortemis.application.queries.filters import FlowFilters
 from vortemis.application.queries.telemetry import TelemetryReadService
-from vortemis.application.sessions import OperatorSessionService
+from vortemis.application.sessions import LoginResult, OperatorSessionService
 from vortemis.config import ApiSettings, Settings
 from vortemis.entrypoints.api_schemas import (
     FlowPageSchema,
@@ -26,6 +27,7 @@ from vortemis.entrypoints.api_schemas import (
     LoginRequest,
     ModelMetadataSchema,
     PasswordRequest,
+    RefreshRequest,
     SourceAggregateSchema,
     SummaryResponse,
     TimelinePointSchema,
@@ -41,21 +43,38 @@ from vortemis.entrypoints.container import (
     build_telemetry_service,
 )
 from vortemis.infrastructure.persistence.database import SqlDatabase
-from vortemis.infrastructure.persistence.login_limiter import LoginLimiter
+from vortemis.infrastructure.persistence.login_throttle import SqlLoginThrottle
 
 API_VERSION = "1.0.0"
 DEFAULT_THRESHOLD = 0.70
 MAX_LIMIT = 500
 
 
+def _token_response(result: LoginResult) -> TokenResponse:
+    now = datetime.now(UTC)
+    access = int(
+        (result.session.access_expires_at - now).total_seconds()
+    )
+    refresh = int(
+        (result.session.refresh_expires_at - now).total_seconds()
+    )
+    return TokenResponse(
+        access_token=result.session.access_token,
+        refresh_token=result.session.refresh_token,
+        expires_in=max(access, 0),
+        refresh_expires_in=max(refresh, 0),
+        role=result.identity.role,
+    )
+
+
 def create_app(
     read_service: TelemetryReadService,
     session_service: OperatorSessionService,
     operator_admin: OperatorAdminPort,
+    throttle: LoginThrottlePort,
     database: SqlDatabase,
     settings: ApiSettings,
     log_file: Path,
-    limiter: LoginLimiter | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Vortemis.io API", version=API_VERSION)
     app.add_middleware(
@@ -65,7 +84,7 @@ def create_app(
         allow_headers=["Authorization", "Content-Type"],
     )
     bearer = HTTPBearer(auto_error=False)
-    guard = limiter or LoginLimiter()
+    guard = throttle
 
     @app.exception_handler(InvalidQueryError)
     async def invalid_query(
@@ -155,31 +174,30 @@ def create_app(
 
     @app.post("/v1/auth/login", response_model=TokenResponse)
     async def login(payload: LoginRequest) -> TokenResponse:
-        if not guard.allow(payload.username):
+        if not await guard.allow(payload.username):
+            remaining = await guard.remaining_seconds(payload.username)
             raise HTTPException(
                 status_code=429,
                 detail="too many failed attempts",
-                headers={
-                    "Retry-After": str(
-                        int(guard.remaining_seconds(payload.username))
-                    )
-                },
+                headers={"Retry-After": str(int(remaining))},
             )
         result = await session_service.login(
             payload.username, payload.password
         )
         if result is None:
-            guard.record_failure(payload.username)
+            await guard.register_failure(payload.username)
             raise HTTPException(status_code=401, detail="invalid credentials")
-        guard.record_success(payload.username)
-        ttl = int(
-            (result.token.expires_at - datetime.now(UTC)).total_seconds()
-        )
-        return TokenResponse(
-            access_token=result.token.token,
-            expires_in=max(ttl, 0),
-            role=result.identity.role,
-        )
+        await guard.register_success(payload.username)
+        return _token_response(result)
+
+    @app.post("/v1/auth/refresh", response_model=TokenResponse)
+    async def refresh(payload: RefreshRequest) -> TokenResponse:
+        result = await session_service.refresh(payload.refresh_token)
+        if result is None:
+            raise HTTPException(
+                status_code=401, detail="invalid refresh token"
+            )
+        return _token_response(result)
 
     @app.post("/v1/auth/logout", status_code=204)
     async def logout(
@@ -296,9 +314,12 @@ def build_app() -> FastAPI:
     return create_app(
         read_service=build_telemetry_service(database, settings.model_path),
         session_service=build_session_service(
-            database, api_settings.token_ttl
+            database,
+            api_settings.access_ttl,
+            api_settings.refresh_ttl,
         ),
         operator_admin=build_operator_admin(database),
+        throttle=SqlLoginThrottle(database),
         database=database,
         settings=api_settings,
         log_file=settings.log_file,

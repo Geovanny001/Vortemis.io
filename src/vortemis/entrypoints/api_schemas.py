@@ -16,6 +16,10 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
 class PasswordRequest(BaseModel):
     password: str = Field(min_length=12, max_length=256)
     role: Literal["admin", "analyst"] | None = None
@@ -23,8 +27,10 @@ class PasswordRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
     expires_in: int
+    refresh_expires_in: int
     role: str
 
 

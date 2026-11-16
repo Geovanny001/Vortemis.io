@@ -148,6 +148,15 @@ Registro de decisiones tomadas para que cualquier agente/sesión nueva no las de
 - **Rotación**: `PUT /v1/admin/operators/{username}/password`, mínimo 12 caracteres, crea el operador si falta.
 - **Compatibilidad**: `InvalidQueryError` hereda de `ValueError` para no romper consumidores.
 
+## API: refresh con rotación y throttle compartido (2026-11-16)
+- **Tokens**: access de 15 minutos y refresh de 30 días; ambos opacos y hasheados.
+- **Rotación**: cada refresco reemplaza el par; el access anterior queda inválido.
+- **Reutilización**: un refresh ya rotado revoca la sesión completa (401).
+- **Throttle**: tabla `login_attempts`; cinco fallos en cinco minutos bloquean cinco minutos.
+- **Motivo**: el rate limit en memoria no protege con varias réplicas.
+- **Dashboard**: conserva `LoginLimiter` en memoria; la API usa la implementación SQL.
+- **Configuración**: `VORTEMIS_ACCESS_TTL_MINUTES` y `VORTEMIS_REFRESH_TTL_DAYS` sustituyen a `VORTEMIS_TOKEN_TTL_HOURS`.
+
 ## Convenciones de trabajo (2026-11-14)
 - **Estándar de PR**: `docs/ops/PULL_REQUESTS.md` y plantilla `.github/pull_request_template.md`.
 - **Un cambio lógico por PR**: código, tests, migración, documentación y evidencia en el mismo PR; no se abren PR de documentación separados.
