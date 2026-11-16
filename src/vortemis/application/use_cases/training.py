@@ -3,8 +3,8 @@ from pathlib import Path
 import numpy
 import torch
 
+from vortemis.application.features import FEATURE_DIM
 from vortemis.application.use_cases.bayesian_pytorch_engine import (
-    FEATURE_DIM,
     TrafficAutoencoder,
 )
 

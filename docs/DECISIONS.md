@@ -111,6 +111,14 @@ Registro de decisiones tomadas para que cualquier agente/sesión nueva no las de
 - **Presentación**: el dashboard calcula z-scores con pandas y no importa NumPy ni `load_checkpoint`.
 - **Pendiente**: `build_feature_vector` sigue en el módulo del modelo, así que el dashboard aún importa PyTorch de forma transitiva.
 
+## Motor: features separadas del modelo (2026-11-16)
+- **Módulo**: `application/features.py` con `FEATURE_DIM` y `build_feature_vector`; solo NumPy.
+- **Modelo**: `bayesian_pytorch_engine.py` importa `FEATURE_DIM` y no reexporta el constructor de features.
+- **Presentación**: el dashboard importa desde `application.features`; no carga PyTorch.
+- **Clasificación**: `classify_mitre_tactic` se queda en el motor porque la ingesta ya carga el modelo.
+- **Límite**: un test en subproceso verifica que `torch` no aparece en `sys.modules` al importar features.
+- **Regla**: las features describen el vector, no la red; viven fuera del módulo de inferencia.
+
 ## Convenciones de trabajo (2026-11-14)
 - **Estándar de PR**: `docs/ops/PULL_REQUESTS.md` y plantilla `.github/pull_request_template.md`.
 - **Un cambio lógico por PR**: código, tests, migración, documentación y evidencia en el mismo PR; no se abren PR de documentación separados.

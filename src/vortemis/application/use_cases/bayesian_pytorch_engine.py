@@ -6,7 +6,7 @@ import numpy
 import torch
 import torch.nn as nn
 
-FEATURE_DIM = 6
+from vortemis.application.features import FEATURE_DIM
 
 _SAFE_NUMPY_GLOBALS = [
     numpy._core.multiarray._reconstruct,
@@ -20,7 +20,6 @@ _LATERAL_PORTS = {22, 135, 139, 445, 3389, 5985}
 _C2_PORTS = {53, 80, 443, 8080, 8443}
 _IMPACT_STATES = {"S0", "RSTO", "RSTR", "SH", "OTH"}
 _RECON_STATES = {"S0", "REJ"}
-_FAILED_STATES = {"S0", "REJ", "RSTO", "RSTR"}
 
 
 class TrafficAutoencoder(nn.Module):
@@ -71,30 +70,6 @@ class BayesianPyTorchEngine:
             reconstructed = self._model(tensor)
             error = ((tensor - reconstructed) ** 2).mean(dim=1).numpy()
         return 1.0 / (1.0 + numpy.exp(-self._k * (error - self._tau) / self._tau))
-
-
-def build_feature_vector(
-    *,
-    iat_ms: float | None,
-    orig_bytes: int,
-    resp_bytes: int,
-    duration: float,
-    conn_state: str | None,
-) -> numpy.ndarray:
-    resolved_iat = iat_ms if iat_ms is not None else 0.0
-    pcr = (orig_bytes - resp_bytes) / (orig_bytes + resp_bytes + 1.0)
-    is_failed_conn = 1.0 if conn_state in _FAILED_STATES else 0.0
-    return numpy.asarray(
-        [
-            numpy.log1p(resolved_iat),
-            numpy.log1p(orig_bytes),
-            numpy.log1p(resp_bytes),
-            numpy.log1p(duration),
-            pcr,
-            is_failed_conn,
-        ],
-        dtype="float32",
-    )
 
 
 def classify_mitre_tactic(
