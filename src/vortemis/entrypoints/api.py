@@ -1,10 +1,19 @@
 from datetime import UTC, datetime
+from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
+from vortemis.application.errors import (
+    InvalidQueryError,
+    NotFoundError,
+    PermissionDeniedError,
+)
+from vortemis.application.ports.driven.operator_admin import OperatorAdminPort
 from vortemis.application.queries.dto import OperatorIdentity
 from vortemis.application.queries.filters import FlowFilters
 from vortemis.application.queries.telemetry import TelemetryReadService
@@ -16,6 +25,7 @@ from vortemis.entrypoints.api_schemas import (
     IdentityResponse,
     LoginRequest,
     ModelMetadataSchema,
+    PasswordRequest,
     SourceAggregateSchema,
     SummaryResponse,
     TimelinePointSchema,
@@ -26,6 +36,7 @@ from vortemis.entrypoints.api_schemas import (
     to_timeline,
 )
 from vortemis.entrypoints.container import (
+    build_operator_admin,
     build_session_service,
     build_telemetry_service,
 )
@@ -40,19 +51,45 @@ MAX_LIMIT = 500
 def create_app(
     read_service: TelemetryReadService,
     session_service: OperatorSessionService,
+    operator_admin: OperatorAdminPort,
     database: SqlDatabase,
     settings: ApiSettings,
+    log_file: Path,
     limiter: LoginLimiter | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Vortemis.io API", version=API_VERSION)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.cors_origins),
-        allow_methods=["GET", "POST"],
+        allow_methods=["GET", "POST", "PUT"],
         allow_headers=["Authorization", "Content-Type"],
     )
     bearer = HTTPBearer(auto_error=False)
     guard = limiter or LoginLimiter()
+
+    @app.exception_handler(InvalidQueryError)
+    async def invalid_query(
+        request: Request, exc: InvalidQueryError
+    ) -> JSONResponse:
+        return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+    @app.exception_handler(NotFoundError)
+    async def not_found(request: Request, exc: NotFoundError) -> JSONResponse:
+        return JSONResponse(status_code=404, content={"detail": str(exc)})
+
+    @app.exception_handler(PermissionDeniedError)
+    async def forbidden(
+        request: Request, exc: PermissionDeniedError
+    ) -> JSONResponse:
+        return JSONResponse(status_code=403, content={"detail": str(exc)})
+
+    @app.exception_handler(SQLAlchemyError)
+    async def unavailable(
+        request: Request, exc: SQLAlchemyError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=503, content={"detail": "database unavailable"}
+        )
 
     async def current_operator(
         credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
@@ -70,6 +107,13 @@ def create_app(
                 detail="invalid or expired token",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        return identity
+
+    async def require_admin(
+        identity: OperatorIdentity = Depends(current_operator),
+    ) -> OperatorIdentity:
+        if identity.role != "admin":
+            raise PermissionDeniedError("admin role required")
         return identity
 
     def flow_filters(
@@ -224,6 +268,24 @@ def create_app(
             )
         return to_metadata(metadata)
 
+    @app.post("/v1/admin/purge", status_code=204)
+    async def purge(
+        identity: OperatorIdentity = Depends(require_admin),
+    ) -> Response:
+        await read_service.purge(log_file)
+        return Response(status_code=204)
+
+    @app.put("/v1/admin/operators/{username}/password", status_code=204)
+    async def rotate_password(
+        username: str,
+        payload: PasswordRequest,
+        identity: OperatorIdentity = Depends(require_admin),
+    ) -> Response:
+        await operator_admin.set_password(
+            username, payload.password, payload.role
+        )
+        return Response(status_code=204)
+
     return app
 
 
@@ -236,8 +298,10 @@ def build_app() -> FastAPI:
         session_service=build_session_service(
             database, api_settings.token_ttl
         ),
+        operator_admin=build_operator_admin(database),
         database=database,
         settings=api_settings,
+        log_file=settings.log_file,
     )
 
 

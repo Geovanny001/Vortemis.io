@@ -14,6 +14,7 @@ from vortemis.domain.value_objects.protocol import Protocol
 from vortemis.domain.value_objects.timestamp import Timestamp
 from vortemis.entrypoints.api import create_app
 from vortemis.entrypoints.container import (
+    build_operator_admin,
     build_session_service,
     build_telemetry_service,
 )
@@ -23,6 +24,7 @@ from vortemis.infrastructure.persistence.login_limiter import LoginLimiter
 from vortemis.infrastructure.persistence.postgres_repository import (
     PostgresFlowRepository,
 )
+from vortemis.infrastructure.zeek.header import ZEEK_CONN_HEADER
 
 _MODEL_PATH = Path("models/vortemis_ae.pt").resolve()
 _CORS_ORIGIN = "https://console.example.com"
@@ -73,7 +75,14 @@ async def database(tmp_path: Path) -> AsyncIterator[SqlDatabase]:
 
 
 @pytest.fixture
-def app(database: SqlDatabase) -> FastAPI:
+def log_file(tmp_path: Path) -> Path:
+    path = tmp_path / "conn.log"
+    path.write_text("\n".join(ZEEK_CONN_HEADER) + "\n", encoding="utf-8")
+    return path
+
+
+@pytest.fixture
+def app(database: SqlDatabase, log_file: Path) -> FastAPI:
     settings = ApiSettings(
         cors_origins=(_CORS_ORIGIN,),
         token_ttl=timedelta(hours=1),
@@ -81,8 +90,10 @@ def app(database: SqlDatabase) -> FastAPI:
     return create_app(
         read_service=build_telemetry_service(database, _MODEL_PATH),
         session_service=build_session_service(database, settings.token_ttl),
+        operator_admin=build_operator_admin(database),
         database=database,
         settings=settings,
+        log_file=log_file,
         limiter=LoginLimiter(),
     )
 
@@ -231,6 +242,52 @@ async def test_invalid_filters_return_422(client: AsyncClient) -> None:
     )
 
     assert response.status_code == 422
+
+
+async def test_invalid_cursor_returns_400(client: AsyncClient) -> None:
+    token = await _login(client)
+
+    response = await client.get(
+        "/v1/flows", params={"cursor": "garbage"}, headers=_auth(token)
+    )
+
+    assert response.status_code == 400
+
+
+async def test_admin_can_purge_telemetry(client: AsyncClient) -> None:
+    token = await _login(client)
+
+    purge = await client.post("/v1/admin/purge", headers=_auth(token))
+    summary = await client.get("/v1/stats/summary", headers=_auth(token))
+
+    assert purge.status_code == 204
+    assert summary.json()["total_flows"] == 0
+
+
+async def test_analyst_cannot_purge_telemetry(
+    client: AsyncClient,
+) -> None:
+    token = await _login(client, "soc_analyst", "VortemisAnalyst2026!")
+
+    response = await client.post("/v1/admin/purge", headers=_auth(token))
+
+    assert response.status_code == 403
+
+
+async def test_admin_can_rotate_an_operator_password(
+    client: AsyncClient,
+) -> None:
+    token = await _login(client)
+
+    rotate = await client.put(
+        "/v1/admin/operators/soc_analyst/password",
+        json={"password": "NuevaClave2026!"},
+        headers=_auth(token),
+    )
+    new_token = await _login(client, "soc_analyst", "NuevaClave2026!")
+
+    assert rotate.status_code == 204
+    assert new_token
 
 
 async def test_login_is_rate_limited(client: AsyncClient) -> None:

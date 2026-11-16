@@ -1,6 +1,7 @@
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from vortemis.application.queries.dto import (
     FlowPage,
@@ -13,6 +14,11 @@ from vortemis.application.queries.dto import (
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+
+class PasswordRequest(BaseModel):
+    password: str = Field(min_length=12, max_length=256)
+    role: Literal["admin", "analyst"] | None = None
 
 
 class TokenResponse(BaseModel):
