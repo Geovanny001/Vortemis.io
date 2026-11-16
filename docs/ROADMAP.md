@@ -192,3 +192,13 @@ Fuente de verdad: `Context_vortemis_puro.md` (especificación original). Objetiv
 - Configuración: `VORTEMIS_ACCESS_TTL_MINUTES` y `VORTEMIS_REFRESH_TTL_DAYS`.
 - Validación: 188 tests verdes; PostgreSQL real con rotación, reutilización y 429.
 - Próximo: OpenAPI como artefacto y servicio `api` en Compose.
+
+## 2026-11-16 - API: artefacto OpenAPI y servicio en Compose
+- Rama: `chore/api-artifacts-compose`
+- Evidencia: `docs/evidence/2026-11-16-api-artifacts-compose.md`
+- Contrato: `docs/openapi.json` versionado y verificado contra `app.openapi()` en tests.
+- CI: exporta el esquema dentro de la imagen y lo sube como artefacto del run.
+- Compose: servicio `api` en `8000` con healthcheck HTTP y dependencia de la base sana.
+- Arranque: `alembic upgrade head || alembic stamp head` antes de uvicorn.
+- Validación: 192 tests verdes; build con exportación validado en el CI del PR.
+- Próximo: adjuntar el contrato al release, auditoría y limpieza de tokens.

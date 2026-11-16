@@ -103,7 +103,7 @@ cd Vortemis.io
 docker compose up --build
 ```
 
-Open http://localhost:8501. The stack starts PostgreSQL, the seed/ingest service, and the Streamlit dashboard.
+Open http://localhost:8501. The stack starts PostgreSQL, the seed/ingest service, the Streamlit dashboard and the HTTP API on http://localhost:8000.
 
 ### Local
 

@@ -28,3 +28,12 @@ jobs:
 
       - name: Verify package import
         run: docker run --rm vortemis:ci python -c "import vortemis; print('import_ok')"
+
+      - name: Export OpenAPI
+        run: docker run --rm -v "$PWD/docs:/app/docs" vortemis:ci python scripts/export_openapi.py
+
+      - name: Upload OpenAPI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi
+          path: docs/openapi.json

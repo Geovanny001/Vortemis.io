@@ -12,6 +12,8 @@
 python -m uv run uvicorn vortemis.entrypoints.api:app --host 0.0.0.0 --port 8000
 ```
 
+Con Docker Compose, el servicio `api` queda en `http://localhost:8000` y usa el healthcheck del contenedor.
+
 Variables:
 
 | Variable | Uso |
@@ -22,7 +24,7 @@ Variables:
 | `VORTEMIS_ACCESS_TTL_MINUTES` | Vida del access token, 15 por defecto |
 | `VORTEMIS_REFRESH_TTL_DAYS` | Vida del refresh token, 30 por defecto |
 
-OpenAPI: `GET /openapi.json` y `GET /docs`.
+OpenAPI: `GET /openapi.json` y `GET /docs`. El contrato exportado vive en `docs/openapi.json` y se publica como artefacto en cada build de CI.
 
 ## 2. Autenticación
 
