@@ -161,3 +161,14 @@ Fuente de verdad: `Context_vortemis_puro.md` (especificación original). Objetiv
 - Eliminado: `session.py` y la creación de un engine por consulta.
 - Validación: 156 tests verdes; PostgreSQL real con tres bucles separados y modo con pool.
 - Próximo: errores tipados, lecturas del dashboard en un solo bucle y retención.
+
+## 2026-11-16 - API de lectura `/v1`
+- Rama: `feat/read-api`
+- Evidencia: `docs/evidence/2026-11-16-read-api.md`
+- Contrato: `docs/CONTRACTS.md` con endpoints, errores y versionado.
+- FastAPI: `/v1/health`, login/logout/me, flujos, resumen, top sources, timeline y metadata.
+- Tokens: tabla `api_tokens`, migración `0002`, SHA-256 en reposo, TTL 12 h, logout revoca.
+- CORS: allowlist por `VORTEMIS_CORS_ORIGINS`; bearer para origen externo.
+- Validación: 174 tests verdes; uvicorn contra PostgreSQL con 5000 flujos y ciclo de token completo.
+- Decisión: API en este repo, frontend en otro; se revierte "sin API REST".
+- Próximo: refresh token, rate limit compartido, OpenAPI como artefacto y servicio `api` en Compose.

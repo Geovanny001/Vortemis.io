@@ -26,7 +26,7 @@
 
 ---
 
-**Docs:** [Roadmap](docs/ROADMAP.md) | [Decisions](docs/DECISIONS.md) | [Security](docs/ops/SECURITY.md) | [Handoff](docs/handoff/2026-11-14.md)
+**Docs:** [Roadmap](docs/ROADMAP.md) | [API contract](docs/CONTRACTS.md) | [Decisions](docs/DECISIONS.md) | [Security](docs/ops/SECURITY.md) | [Handoff](docs/handoff/2026-11-14.md)
 
 **Source:** https://github.com/Geovanny001/Vortemis.io
 

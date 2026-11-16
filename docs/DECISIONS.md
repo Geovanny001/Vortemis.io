@@ -128,6 +128,18 @@ Registro de decisiones tomadas para que cualquier agente/sesión nueva no las de
 - **Cierre**: explícito en CLI y tests; en Streamlit lo gestiona el proceso mediante `st.cache_resource`.
 - **Eliminado**: `session.py`; no queda ningún engine por consulta.
 
+## API HTTP `/v1` (2026-11-16)
+- **Ubicación**: la API vive en este repo (`entrypoints/api.py`); los frontends, en repos aparte.
+- **Transporte**: FastAPI + uvicorn, JSON en UTF-8, fechas ISO 8601 en UTC.
+- **Autenticación**: bearer token opaco; se guarda solo el SHA-256 en `api_tokens`.
+- **Sin JWT**: la revocación es inmediata y no hay claves que rotar.
+- **Roles**: se leen de `soc_operators` en cada petición; un cambio de rol surte efecto al instante.
+- **CORS**: allowlist explícita por entorno; sin `*` y sin cookies, porque el frontend es externo.
+- **Contrato**: `/v1` aditivo; cambios incompatibles abren `/v2`. Documento en `docs/CONTRACTS.md`.
+- **Límites**: `limit` 1-500, `bucket_seconds` 10-86400, `threshold` 0-1.
+- **Decisión revertida**: antes se decidió no tener API REST; ahora hay un adaptador HTTP y el motor no cambia.
+- **Pendiente**: refresh token, rate limit compartido, OpenAPI como artefacto y auditoría.
+
 ## Convenciones de trabajo (2026-11-14)
 - **Estándar de PR**: `docs/ops/PULL_REQUESTS.md` y plantilla `.github/pull_request_template.md`.
 - **Un cambio lógico por PR**: código, tests, migración, documentación y evidencia en el mismo PR; no se abren PR de documentación separados.

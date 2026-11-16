@@ -1,5 +1,6 @@
 import os
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 
 DATABASE_URL_ENV = "DATABASE_URL"
@@ -11,6 +12,9 @@ DEFAULT_MODEL_PATH = "models/vortemis_ae.pt"
 EPSILON_ENV = "EPSILON"
 DEFAULT_EPSILON = 0.70
 CONTINUOUS_MODE_ENV = "CONTINUOUS_MODE"
+API_CORS_ENV = "VORTEMIS_CORS_ORIGINS"
+API_TOKEN_TTL_ENV = "VORTEMIS_TOKEN_TTL_HOURS"
+DEFAULT_TOKEN_TTL_HOURS = 12.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,3 +34,18 @@ class Settings:
             epsilon=float(os.getenv(EPSILON_ENV, str(DEFAULT_EPSILON))),
             continuous_mode=os.getenv(CONTINUOUS_MODE_ENV, "false").lower() == "true",
         )
+
+
+@dataclass(frozen=True, slots=True)
+class ApiSettings:
+    cors_origins: tuple[str, ...]
+    token_ttl: timedelta
+
+    @classmethod
+    def from_env(cls) -> ApiSettings:
+        raw = os.getenv(API_CORS_ENV, "")
+        origins = tuple(
+            origin.strip() for origin in raw.split(",") if origin.strip()
+        )
+        hours = float(os.getenv(API_TOKEN_TTL_ENV, str(DEFAULT_TOKEN_TTL_HOURS)))
+        return cls(cors_origins=origins, token_ttl=timedelta(hours=hours))
