@@ -157,6 +157,14 @@ Registro de decisiones tomadas para que cualquier agente/sesión nueva no las de
 - **Dashboard**: conserva `LoginLimiter` en memoria; la API usa la implementación SQL.
 - **Configuración**: `VORTEMIS_ACCESS_TTL_MINUTES` y `VORTEMIS_REFRESH_TTL_DAYS` sustituyen a `VORTEMIS_TOKEN_TTL_HOURS`.
 
+## API: contrato y despliegue (2026-11-16)
+- **Artefacto**: `docs/openapi.json` versionado; un test falla si diverge de la app.
+- **CI**: exporta el contrato dentro de la imagen y lo sube como artefacto del run.
+- **Compose**: servicio `api` en `8000` con healthcheck HTTP y dependencia de la base sana.
+- **Arranque**: `alembic upgrade head || alembic stamp head`; base nueva migra, base existente se adopta.
+- **Healthcheck**: se reutiliza `scripts/healthcheck.py` con `HEALTHCHECK_URL`.
+- **Regla**: el contrato versionado es la fuente para el frontend, no una instancia en ejecución.
+
 ## Convenciones de trabajo (2026-11-14)
 - **Estándar de PR**: `docs/ops/PULL_REQUESTS.md` y plantilla `.github/pull_request_template.md`.
 - **Un cambio lógico por PR**: código, tests, migración, documentación y evidencia en el mismo PR; no se abren PR de documentación separados.

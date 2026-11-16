@@ -56,5 +56,31 @@ services:
     volumes:
       - ./data/samples:/app/data/samples
 
+  api:
+    build: .
+    command: sh -c "alembic upgrade head || alembic stamp head; uvicorn vortemis.entrypoints.api:app --host 0.0.0.0 --port 8000"
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://vortemis:vortemis@db:5432/vortemis
+      MODEL_PATH: /app/models/vortemis_ae.pt
+      LOG_FILE: /app/data/samples/conn_massive.log
+      HEALTHCHECK_URL: http://127.0.0.1:8000/v1/health
+      VORTEMIS_CORS_ORIGINS: ${VORTEMIS_CORS_ORIGINS:-http://localhost:3000}
+      VORTEMIS_ACCESS_TTL_MINUTES: ${VORTEMIS_ACCESS_TTL_MINUTES:-15}
+      VORTEMIS_REFRESH_TTL_DAYS: ${VORTEMIS_REFRESH_TTL_DAYS:-30}
+    healthcheck:
+      test: ["CMD", "python", "scripts/healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    volumes:
+      - ./data/samples:/app/data/samples
+
 volumes:
   postgres_data:
