@@ -4,16 +4,15 @@ import time
 from dataclasses import asdict
 from pathlib import Path
 
-import numpy
 import pandas
 import plotly.express as px
 import streamlit as st
 
 from vortemis.application.mitre import MITRE_TACTICS
+from vortemis.application.queries.dto import ModelMetadata
 from vortemis.application.queries.telemetry import TelemetryReadService
 from vortemis.application.use_cases.bayesian_pytorch_engine import (
     build_feature_vector,
-    load_checkpoint,
 )
 from vortemis.application.validation import (
     validate_date_range,
@@ -143,18 +142,6 @@ async def authenticate(
 ) -> str | None:
     identity = await service.authenticate(username, password)
     return identity.role if identity is not None else None
-
-
-def load_model_metadata(model_path: Path) -> dict | None:
-    if not model_path.exists():
-        return None
-    checkpoint = load_checkpoint(model_path)
-    return {
-        "tau": float(checkpoint["tau"]),
-        "mu": numpy.asarray(checkpoint["mu"], dtype="float32"),
-        "sigma": numpy.asarray(checkpoint["sigma"], dtype="float32"),
-        "layers": "6 -> 16 -> 3 -> 16 -> 6",
-    }
 
 
 def _log_status(log_file: Path) -> tuple[str, str]:
@@ -367,7 +354,9 @@ def render_tab_overview(frame: pandas.DataFrame, threshold: float) -> None:
     st.dataframe(risk, hide_index=True)
 
 
-def render_tab_forensic(frame: pandas.DataFrame, metadata: dict | None) -> None:
+def render_tab_forensic(
+    frame: pandas.DataFrame, metadata: ModelMetadata | None
+) -> None:
     st.subheader("Deep Flow Forensic Inspector")
     st.dataframe(
         frame[
@@ -415,7 +404,9 @@ def render_tab_forensic(frame: pandas.DataFrame, metadata: dict | None) -> None:
         {"Feature": _FEATURE_LABELS, "Current Value": features}
     )
     if metadata is not None:
-        z = (features - metadata["mu"]) / (metadata["sigma"] + 1e-8)
+        z = (pandas.Series(features) - pandas.Series(metadata.mean)) / (
+            pandas.Series(metadata.std) + 1e-8
+        )
         feature_frame["Z-Score"] = z
         feature_frame["Status"] = [
             (
@@ -467,16 +458,20 @@ def render_tab_mitre_matrix(frame: pandas.DataFrame) -> None:
             )
 
 
-def render_tab_diagnostics(metadata: dict | None, log_file: Path) -> None:
+def render_tab_diagnostics(metadata: ModelMetadata | None, log_file: Path) -> None:
     st.subheader("PyTorch Engine & Sensor Diagnostics")
     if metadata is None:
         st.warning("models/vortemis_ae.pt not found")
     else:
-        st.write(f"Architecture: `{metadata['layers']}`")
-        st.write(f"tau (95th percentile): `{metadata['tau']:.4f}`")
-        mu_frame = pandas.DataFrame({"feature": _FEATURE_LABELS, "mu": metadata["mu"]})
+        st.write(f"Architecture: `{metadata.architecture}`")
+        st.write(f"tau (95th percentile): `{metadata.tau:.4f}`")
+        mu_frame = pandas.DataFrame(
+            {"feature": _FEATURE_LABELS, "mu": metadata.mean}
+        )
         st.dataframe(mu_frame, hide_index=True)
-        sigma_frame = pandas.DataFrame({"feature": _FEATURE_LABELS, "sigma": metadata["sigma"]})
+        sigma_frame = pandas.DataFrame(
+            {"feature": _FEATURE_LABELS, "sigma": metadata.std}
+        )
         st.dataframe(sigma_frame, hide_index=True)
 
     st.subheader("Sensor Log File Status")
@@ -569,7 +564,7 @@ def main() -> None:
     database_url = os.getenv(DATABASE_URL_ENV, DEFAULT_DATABASE_URL)
     model_path = Path(os.getenv(MODEL_PATH_ENV, DEFAULT_MODEL_PATH))
     log_file = Path(os.getenv(LOG_FILE_ENV, DEFAULT_LOG_FILE))
-    service = build_telemetry_service(database_url)
+    service = build_telemetry_service(database_url, model_path)
 
     if not st.session_state.get("operator"):
         render_login(service)
@@ -584,11 +579,11 @@ def main() -> None:
         st.error(f"Unable to reach the database: {exc}")
         st.stop()
 
-    metadata = load_model_metadata(model_path)
+    metadata = asyncio.run(service.model_metadata())
     render_status_bar(
         username,
         role,
-        metadata["tau"] if metadata else None,
+        metadata.tau if metadata else None,
         log_file,
     )
 

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from vortemis.application.ports.driven.engine_metadata import EngineMetadataPort
 from vortemis.application.ports.driven.flow_query import FlowQueryPort
 from vortemis.application.ports.driven.operator_auth import OperatorAuthPort
 from vortemis.application.ports.driven.telemetry_maintenance import (
@@ -7,6 +8,7 @@ from vortemis.application.ports.driven.telemetry_maintenance import (
 )
 from vortemis.application.queries.dto import (
     FlowPage,
+    ModelMetadata,
     OperatorIdentity,
     SourceAggregate,
     TimelinePoint,
@@ -20,10 +22,12 @@ class TelemetryReadService:
         flow_query: FlowQueryPort,
         auth: OperatorAuthPort,
         maintenance: TelemetryMaintenancePort,
+        metadata: EngineMetadataPort,
     ) -> None:
         self._flow_query = flow_query
         self._auth = auth
         self._maintenance = maintenance
+        self._metadata = metadata
 
     async def search_flows(
         self,
@@ -76,6 +80,9 @@ class TelemetryReadService:
             bucket_seconds=bucket_seconds,
             filters=filters,
         )
+
+    async def model_metadata(self) -> ModelMetadata | None:
+        return await self._metadata.load()
 
     async def authenticate(
         self,

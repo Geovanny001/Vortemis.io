@@ -130,3 +130,13 @@ Fuente de verdad: `Context_vortemis_puro.md` (especificación original). Objetiv
 - Presentaciones: dashboard y TUI consumen `search_flows(...).records`.
 - Validación: 145 tests verdes; PostgreSQL real con paginación, filtros y cubos temporales.
 - Próximo: `EngineMetadataPort`, ciclo de vida del engine y errores tipados.
+
+## 2026-11-14 - Motor: metadata del motor
+- Rama: `feat/engine-metadata`
+- Evidencia: `docs/evidence/2026-11-14-engine-metadata.md`
+- Contrato: `ModelMetadata` con arquitectura, dimensión, `tau`, `mean` y `std`.
+- Puerto: `EngineMetadataPort`; adaptador `TorchEngineMetadata` con lectura segura y caché.
+- Composition root: `build_telemetry_service(database_url, model_path)`.
+- Presentación: el dashboard ya no lee el checkpoint ni importa NumPy; usa `service.model_metadata()`.
+- Validación: 148 tests verdes; smoke tests del dashboard con el checkpoint real.
+- Próximo: separar `build_feature_vector` del módulo del modelo, ciclo de vida del engine y errores tipados.

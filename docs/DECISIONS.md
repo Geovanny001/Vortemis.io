@@ -103,6 +103,14 @@ Registro de decisiones tomadas para que cualquier agente/sesión nueva no las de
 - **Zonas horarias**: el adaptador devuelve siempre `datetime` en UTC; SQLite pierde la zona al leer.
 - **Consumidores**: dashboard y TUI se adaptan a `search_flows`; usar filtros en la UI queda pendiente.
 
+## Motor: metadata del motor (2026-11-14)
+- **DTO**: `ModelMetadata` con `architecture`, `feature_dim`, `tau`, `mean` y `std`; sin arrays de NumPy.
+- **Puerto**: `EngineMetadataPort.load()` devuelve `None` si falta el checkpoint.
+- **Adaptador**: `TorchEngineMetadata` deriva la arquitectura del `state_dict` y cachea por proceso.
+- **Composition root**: recibe `model_path`; la presentación no resuelve el checkpoint.
+- **Presentación**: el dashboard calcula z-scores con pandas y no importa NumPy ni `load_checkpoint`.
+- **Pendiente**: `build_feature_vector` sigue en el módulo del modelo, así que el dashboard aún importa PyTorch de forma transitiva.
+
 ## Convenciones de trabajo (2026-11-14)
 - **Estándar de PR**: `docs/ops/PULL_REQUESTS.md` y plantilla `.github/pull_request_template.md`.
 - **Un cambio lógico por PR**: código, tests, migración, documentación y evidencia en el mismo PR; no se abren PR de documentación separados.
