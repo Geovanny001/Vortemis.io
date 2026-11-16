@@ -19,7 +19,8 @@ Variables:
 | `DATABASE_URL` | PostgreSQL del motor |
 | `MODEL_PATH` | Checkpoint para `/v1/engine/metadata` |
 | `VORTEMIS_CORS_ORIGINS` | Orígenes permitidos, separados por coma |
-| `VORTEMIS_TOKEN_TTL_HOURS` | Vida del token, 12 por defecto |
+| `VORTEMIS_ACCESS_TTL_MINUTES` | Vida del access token, 15 por defecto |
+| `VORTEMIS_REFRESH_TTL_DAYS` | Vida del refresh token, 30 por defecto |
 
 OpenAPI: `GET /openapi.json` y `GET /docs`.
 
@@ -35,16 +36,28 @@ Respuesta `200`:
 ```json
 {
   "access_token": "oX2...",
+  "refresh_token": "rT9...",
   "token_type": "bearer",
-  "expires_in": 43200,
+  "expires_in": 900,
+  "refresh_expires_in": 2592000,
   "role": "admin"
 }
 ```
 
-- Token opaco de 32 bytes; en la base solo se guarda su SHA-256.
-- Vida por defecto: 12 horas.
+- Access token opaco de 32 bytes; en la base solo se guarda su SHA-256.
+- Vida del access token: 15 minutos (`VORTEMIS_ACCESS_TTL_MINUTES`).
+- Vida del refresh token: 30 días (`VORTEMIS_REFRESH_TTL_DAYS`).
 - Códigos: `401` credenciales inválidas, `429` demasiados intentos.
-- Logout revoca el token en la base.
+- El rate limit de login se guarda en base de datos: cinco intentos fallidos por usuario bloquean cinco minutos, incluso con varias instancias de la API.
+
+```text
+POST /v1/auth/refresh
+{ "refresh_token": "rT9..." }
+```
+
+- Devuelve un par nuevo y rota ambos tokens.
+- El access token anterior queda inválido al instante.
+- Si se reutiliza un refresh ya rotado, se revoca la sesión completa y se devuelve `401`.
 
 ```text
 POST /v1/auth/logout   -> 204

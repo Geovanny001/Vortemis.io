@@ -6,19 +6,32 @@ from vortemis.application.queries.dto import OperatorIdentity
 
 
 @dataclass(frozen=True, slots=True)
-class IssuedToken:
-    token: str
-    expires_at: datetime
+class IssuedSession:
+    access_token: str
+    refresh_token: str
+    access_expires_at: datetime
+    refresh_expires_at: datetime
 
 
 class TokenStorePort(Protocol):
-    async def issue(
-        self, operator: OperatorIdentity, expires_at: datetime
-    ) -> IssuedToken:
+    async def create_session(
+        self,
+        operator: OperatorIdentity,
+        access_expires_at: datetime,
+        refresh_expires_at: datetime,
+    ) -> IssuedSession:
         ...
 
-    async def resolve(self, token: str) -> OperatorIdentity | None:
+    async def resolve_access(self, token: str) -> OperatorIdentity | None:
         ...
 
-    async def revoke(self, token: str) -> None:
+    async def rotate(
+        self,
+        refresh_token: str,
+        access_expires_at: datetime,
+        refresh_expires_at: datetime,
+    ) -> IssuedSession | None:
+        ...
+
+    async def revoke(self, access_token: str) -> None:
         ...

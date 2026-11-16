@@ -20,7 +20,7 @@ from vortemis.entrypoints.container import (
 )
 from vortemis.infrastructure.persistence.auth import seed_default_operators
 from vortemis.infrastructure.persistence.database import SqlDatabase
-from vortemis.infrastructure.persistence.login_limiter import LoginLimiter
+from vortemis.infrastructure.persistence.login_throttle import SqlLoginThrottle
 from vortemis.infrastructure.persistence.postgres_repository import (
     PostgresFlowRepository,
 )
@@ -85,16 +85,19 @@ def log_file(tmp_path: Path) -> Path:
 def app(database: SqlDatabase, log_file: Path) -> FastAPI:
     settings = ApiSettings(
         cors_origins=(_CORS_ORIGIN,),
-        token_ttl=timedelta(hours=1),
+        access_ttl=timedelta(minutes=15),
+        refresh_ttl=timedelta(days=30),
     )
     return create_app(
         read_service=build_telemetry_service(database, _MODEL_PATH),
-        session_service=build_session_service(database, settings.token_ttl),
+        session_service=build_session_service(
+            database, settings.access_ttl, settings.refresh_ttl
+        ),
         operator_admin=build_operator_admin(database),
+        throttle=SqlLoginThrottle(database),
         database=database,
         settings=settings,
         log_file=log_file,
-        limiter=LoginLimiter(),
     )
 
 
@@ -107,17 +110,26 @@ async def client(app: FastAPI) -> AsyncIterator[AsyncClient]:
         yield client
 
 
-async def _login(
+async def _login_body(
     client: AsyncClient,
     username: str = "admin_carles",
     password: str = "VortemisAdmin2026!",
-) -> str:
+) -> dict[str, object]:
     response = await client.post(
         "/v1/auth/login",
         json={"username": username, "password": password},
     )
     assert response.status_code == 200
-    return str(response.json()["access_token"])
+    return response.json()
+
+
+async def _login(
+    client: AsyncClient,
+    username: str = "admin_carles",
+    password: str = "VortemisAdmin2026!",
+) -> str:
+    body = await _login_body(client, username, password)
+    return str(body["access_token"])
 
 
 def _auth(token: str) -> dict[str, str]:
@@ -140,6 +152,17 @@ async def test_login_rejects_invalid_credentials(client: AsyncClient) -> None:
     assert response.status_code == 401
 
 
+async def test_login_returns_access_and_refresh_tokens(
+    client: AsyncClient,
+) -> None:
+    body = await _login_body(client)
+
+    assert body["token_type"] == "bearer"
+    assert body["role"] == "admin"
+    assert int(body["expires_in"]) > 0
+    assert int(body["refresh_expires_in"]) > int(body["expires_in"])
+
+
 async def test_login_returns_a_token_and_identity(client: AsyncClient) -> None:
     token = await _login(client)
 
@@ -147,6 +170,50 @@ async def test_login_returns_a_token_and_identity(client: AsyncClient) -> None:
 
     assert response.status_code == 200
     assert response.json() == {"username": "admin_carles", "role": "admin"}
+
+
+async def test_refresh_rotates_the_session(client: AsyncClient) -> None:
+    body = await _login_body(client)
+    old_access = str(body["access_token"])
+    old_refresh = str(body["refresh_token"])
+
+    refreshed = await client.post(
+        "/v1/auth/refresh", json={"refresh_token": old_refresh}
+    )
+    payload = refreshed.json()
+    new_access = str(payload["access_token"])
+    new_refresh = str(payload["refresh_token"])
+
+    assert refreshed.status_code == 200
+    assert new_access != old_access
+    assert new_refresh != old_refresh
+    me = await client.get("/v1/auth/me", headers=_auth(new_access))
+    old = await client.get("/v1/auth/me", headers=_auth(old_access))
+
+    assert me.status_code == 200
+    assert old.status_code == 401
+
+
+async def test_refresh_token_reuse_revokes_the_session(
+    client: AsyncClient,
+) -> None:
+    body = await _login_body(client)
+    first_refresh = str(body["refresh_token"])
+
+    first = await client.post(
+        "/v1/auth/refresh", json={"refresh_token": first_refresh}
+    )
+    replay = await client.post(
+        "/v1/auth/refresh", json={"refresh_token": first_refresh}
+    )
+    rotated_access = str(first.json()["access_token"])
+    after = await client.get(
+        "/v1/auth/me", headers=_auth(rotated_access)
+    )
+
+    assert first.status_code == 200
+    assert replay.status_code == 401
+    assert after.status_code == 401
 
 
 async def test_flows_require_a_token(client: AsyncClient) -> None:
@@ -300,7 +367,7 @@ async def test_login_is_rate_limited(client: AsyncClient) -> None:
     blocked = await client.post("/v1/auth/login", json=payload)
 
     assert blocked.status_code == 429
-    assert blocked.headers["retry-after"]
+    assert int(blocked.headers["retry-after"]) > 0
 
 
 async def test_cors_allows_only_configured_origins(
@@ -330,4 +397,5 @@ def test_openapi_documents_the_contract(app: FastAPI) -> None:
 
     assert "/v1/flows" in schema["paths"]
     assert "/v1/auth/login" in schema["paths"]
+    assert "/v1/auth/refresh" in schema["paths"]
     assert "HTTPBearer" in schema["components"]["securitySchemes"]

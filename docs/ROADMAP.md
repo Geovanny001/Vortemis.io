@@ -182,3 +182,13 @@ Fuente de verdad: `Context_vortemis_puro.md` (especificación original). Objetiv
 - Contrato: `docs/CONTRACTS.md` con la sección de administración y el código 403.
 - Validación: 178 tests verdes; uvicorn contra PostgreSQL con 400, 403, 204 y purga.
 - Próximo: refresh token y rate limit compartido.
+
+## 2026-11-16 - API: refresh con rotación y rate limit compartido
+- Rama: `feat/auth-hardening`
+- Evidencia: `docs/evidence/2026-11-16-api-auth-hardening.md`
+- Refresh: migración `0003`, access 15 min, refresh 30 días y rotación en cada refresco.
+- Seguridad: reutilizar un refresh rotado revoca la sesión completa.
+- Throttle: tabla `login_attempts` y `LoginThrottlePort`; el bloqueo funciona con varias instancias.
+- Configuración: `VORTEMIS_ACCESS_TTL_MINUTES` y `VORTEMIS_REFRESH_TTL_DAYS`.
+- Validación: 188 tests verdes; PostgreSQL real con rotación, reutilización y 429.
+- Próximo: OpenAPI como artefacto y servicio `api` en Compose.

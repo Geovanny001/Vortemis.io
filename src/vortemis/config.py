@@ -13,8 +13,10 @@ EPSILON_ENV = "EPSILON"
 DEFAULT_EPSILON = 0.70
 CONTINUOUS_MODE_ENV = "CONTINUOUS_MODE"
 API_CORS_ENV = "VORTEMIS_CORS_ORIGINS"
-API_TOKEN_TTL_ENV = "VORTEMIS_TOKEN_TTL_HOURS"
-DEFAULT_TOKEN_TTL_HOURS = 12.0
+API_ACCESS_TTL_ENV = "VORTEMIS_ACCESS_TTL_MINUTES"
+API_REFRESH_TTL_ENV = "VORTEMIS_REFRESH_TTL_DAYS"
+DEFAULT_ACCESS_TTL_MINUTES = 15.0
+DEFAULT_REFRESH_TTL_DAYS = 30.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,7 +41,8 @@ class Settings:
 @dataclass(frozen=True, slots=True)
 class ApiSettings:
     cors_origins: tuple[str, ...]
-    token_ttl: timedelta
+    access_ttl: timedelta
+    refresh_ttl: timedelta
 
     @classmethod
     def from_env(cls) -> ApiSettings:
@@ -47,5 +50,14 @@ class ApiSettings:
         origins = tuple(
             origin.strip() for origin in raw.split(",") if origin.strip()
         )
-        hours = float(os.getenv(API_TOKEN_TTL_ENV, str(DEFAULT_TOKEN_TTL_HOURS)))
-        return cls(cors_origins=origins, token_ttl=timedelta(hours=hours))
+        access_minutes = float(
+            os.getenv(API_ACCESS_TTL_ENV, str(DEFAULT_ACCESS_TTL_MINUTES))
+        )
+        refresh_days = float(
+            os.getenv(API_REFRESH_TTL_ENV, str(DEFAULT_REFRESH_TTL_DAYS))
+        )
+        return cls(
+            cors_origins=origins,
+            access_ttl=timedelta(minutes=access_minutes),
+            refresh_ttl=timedelta(days=refresh_days),
+        )

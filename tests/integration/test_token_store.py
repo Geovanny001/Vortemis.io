@@ -32,58 +32,123 @@ def _identity() -> OperatorIdentity:
     return OperatorIdentity(username="admin_carles", role="admin")
 
 
-async def test_issue_and_resolve(database: SqlDatabase) -> None:
-    store = SqlTokenStore(database)
-    issued = await store.issue(
-        _identity(), datetime.now(UTC) + timedelta(hours=1)
-    )
+def _expiry(minutes: int = 15) -> datetime:
+    return datetime.now(UTC) + timedelta(minutes=minutes)
 
-    identity = await store.resolve(issued.token)
+
+async def test_create_session_and_resolve_access(
+    database: SqlDatabase,
+) -> None:
+    store = SqlTokenStore(database)
+
+    session = await store.create_session(
+        _identity(), _expiry(), _expiry(60)
+    )
+    identity = await store.resolve_access(session.access_token)
 
     assert identity == _identity()
-    assert len(issued.token) >= 40
+    assert len(session.access_token) >= 40
+    assert len(session.refresh_token) >= 40
 
 
-async def test_token_is_stored_as_a_hash(database: SqlDatabase) -> None:
+async def test_tokens_are_stored_as_hashes(database: SqlDatabase) -> None:
     store = SqlTokenStore(database)
-    issued = await store.issue(
-        _identity(), datetime.now(UTC) + timedelta(hours=1)
+    session = await store.create_session(
+        _identity(), _expiry(), _expiry(60)
     )
 
-    async with database.session() as session:
-        stored = await session.scalar(select(ApiToken.token_hash))
+    async with database.session() as session_row:
+        row = await session_row.scalar(select(ApiToken))
 
-    assert stored == hashlib.sha256(issued.token.encode("utf-8")).hexdigest()
-    assert stored != issued.token
+    assert row is not None
+    assert row.token_hash == hashlib.sha256(
+        session.access_token.encode("utf-8")
+    ).hexdigest()
+    assert row.refresh_token_hash == hashlib.sha256(
+        session.refresh_token.encode("utf-8")
+    ).hexdigest()
+    assert session.access_token not in {
+        row.token_hash,
+        row.refresh_token_hash,
+    }
 
 
-async def test_expired_token_is_rejected(database: SqlDatabase) -> None:
+async def test_expired_access_token_is_rejected(
+    database: SqlDatabase,
+) -> None:
     store = SqlTokenStore(database)
-    issued = await store.issue(
-        _identity(), datetime.now(UTC) - timedelta(seconds=1)
+    session = await store.create_session(
+        _identity(), datetime.now(UTC) - timedelta(seconds=1), _expiry(60)
     )
 
-    assert await store.resolve(issued.token) is None
+    assert await store.resolve_access(session.access_token) is None
 
 
-async def test_revoked_token_is_rejected(database: SqlDatabase) -> None:
+async def test_rotation_replaces_both_tokens(database: SqlDatabase) -> None:
     store = SqlTokenStore(database)
-    issued = await store.issue(
-        _identity(), datetime.now(UTC) + timedelta(hours=1)
+    session = await store.create_session(
+        _identity(), _expiry(), _expiry(60)
     )
 
-    await store.revoke(issued.token)
+    rotated = await store.rotate(session.refresh_token, _expiry(), _expiry(60))
 
-    assert await store.resolve(issued.token) is None
+    assert rotated is not None
+    assert rotated.access_token != session.access_token
+    assert rotated.refresh_token != session.refresh_token
+    assert await store.resolve_access(session.access_token) is None
+    assert await store.resolve_access(rotated.access_token) == _identity()
 
 
-async def test_unknown_operator_cannot_receive_a_token(
+async def test_refresh_reuse_revokes_the_session(
+    database: SqlDatabase,
+) -> None:
+    store = SqlTokenStore(database)
+    session = await store.create_session(
+        _identity(), _expiry(), _expiry(60)
+    )
+    rotated = await store.rotate(session.refresh_token, _expiry(), _expiry(60))
+    assert rotated is not None
+
+    replay = await store.rotate(session.refresh_token, _expiry(), _expiry(60))
+
+    assert replay is None
+    assert await store.resolve_access(rotated.access_token) is None
+
+
+async def test_expired_refresh_token_is_rejected(
+    database: SqlDatabase,
+) -> None:
+    store = SqlTokenStore(database)
+    session = await store.create_session(
+        _identity(), _expiry(), datetime.now(UTC) - timedelta(seconds=1)
+    )
+
+    rotated = await store.rotate(session.refresh_token, _expiry(), _expiry(60))
+
+    assert rotated is None
+
+
+async def test_revoked_access_token_is_rejected(
+    database: SqlDatabase,
+) -> None:
+    store = SqlTokenStore(database)
+    session = await store.create_session(
+        _identity(), _expiry(), _expiry(60)
+    )
+
+    await store.revoke(session.access_token)
+
+    assert await store.resolve_access(session.access_token) is None
+
+
+async def test_unknown_operator_cannot_receive_a_session(
     database: SqlDatabase,
 ) -> None:
     store = SqlTokenStore(database)
 
     with pytest.raises(NotFoundError):
-        await store.issue(
+        await store.create_session(
             OperatorIdentity(username="ghost", role="analyst"),
-            datetime.now(UTC) + timedelta(hours=1),
+            _expiry(),
+            _expiry(60),
         )
