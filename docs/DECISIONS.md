@@ -165,6 +165,12 @@ Registro de decisiones tomadas para que cualquier agente/sesión nueva no las de
 - **Healthcheck**: se reutiliza `scripts/healthcheck.py` con `HEALTHCHECK_URL`.
 - **Regla**: el contrato versionado es la fuente para el frontend, no una instancia en ejecución.
 
+## OpenAPI como activo del release (2026-11-16)
+- **Disparador**: `release: published`; no en cada push.
+- **Acción**: exportar `docs/openapi.json` y adjuntarlo con `gh release upload --clobber`.
+- **Permisos**: `contents: write` solo en ese workflow.
+- **Motivo**: un frontend fija una versión y descarga el contrato del release, no de un run de CI.
+
 ## Convenciones de trabajo (2026-11-14)
 - **Estándar de PR**: `docs/ops/PULL_REQUESTS.md` y plantilla `.github/pull_request_template.md`.
 - **Un cambio lógico por PR**: código, tests, migración, documentación y evidencia en el mismo PR; no se abren PR de documentación separados.

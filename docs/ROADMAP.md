@@ -202,3 +202,11 @@ Fuente de verdad: `Context_vortemis_puro.md` (especificación original). Objetiv
 - Arranque: `alembic upgrade head || alembic stamp head` antes de uvicorn.
 - Validación: 192 tests verdes; build con exportación validado en el CI del PR.
 - Próximo: adjuntar el contrato al release, auditoría y limpieza de tokens.
+
+## 2026-11-16 - OpenAPI como activo del release
+- Rama: `ci/openapi-release-asset`
+- Evidencia: `docs/evidence/2026-11-16-openapi-release-asset.md`
+- Workflow `openapi-release.yml` disparado por `release: published`.
+- Exporta el contrato y lo sube con `gh release upload --clobber`.
+- Validación: 193 tests verdes; primera ejecución real en el próximo release.
+- Próximo: auditoría, limpieza de tokens y métricas.
