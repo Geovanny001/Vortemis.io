@@ -210,3 +210,10 @@ Fuente de verdad: `Context_vortemis_puro.md` (especificación original). Objetiv
 - Exporta el contrato y lo sube con `gh release upload --clobber`.
 - Validación: 193 tests verdes; primera ejecución real en el próximo release.
 - Próximo: auditoría, limpieza de tokens y métricas.
+
+## 2026-11-19 - Demo: simulador guionado en vivo
+- Rama: `feat/demo-simulator`
+- Evidencia: `docs/evidence/2026-11-19-demo-simulator.md`
+- Script `scripts/demo_simulator.py`: benigno continuo + ciclo Recon -> Lateral -> C2 -> Exfil -> Impacto con timestamps actuales.
+- Validación: 139 flujos, 8 anomalías, las 5 tácticas, benigno por debajo de 0.70.
+- Próximo: pestaña LIVE en `vortemis-web` con auto-refresco y feed de detecciones.
